@@ -1,15 +1,37 @@
-import { User, MarketplaceItem, DirectMessage, GroupChannel, ChannelMessage, DiscussionPost, SharedFile, AdminAuditLog, SystemSettings } from '../types';
+import { 
+  User, 
+  MarketplaceItem, 
+  DirectMessage, 
+  GroupChannel, 
+  ChannelMessage, 
+  DiscussionPost, 
+  SharedFile, 
+  AdminAuditLog, 
+  SystemSettings,
+  ReelItem,
+  EducationalNewsItem,
+  PersonalDriveItem,
+  HelpTicket,
+  GameTruthOrDare
+} from '../types';
 import rakibulAvatar from '../assets/images/rakibul_islam_avatar_1788088663745.jpg';
+import defaultSchoolCampusImage from '../assets/images/school_campus_aerial_1788088291861.jpg';
 
 export { rakibulAvatar };
 
+export const defaultSchoolLogo = 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=200&auto=format&fit=crop&q=80';
+
 export const defaultSystemSettings: SystemSettings = {
   schoolName: 'Quantum Cosmo School (SSC 2027 Batch)',
+  appLogo: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=200&auto=format&fit=crop&q=80',
+  defaultCampusPhoto: defaultSchoolCampusImage,
   announcement: '📢 স্বাগতম Quantum Cosmo School SSC 2027 ব্যাচ! পদার্থবিজ্ঞান, রসায়ন, উচ্চতর গণিত ও বায়োলজি টেস্ট পেপার সলিউশন এবং নোটস ভল্টে যুক্ত হয়েছে। সহপাঠীদের সাথে স্টাডি রুমে জয়েন করুন।',
   allowStudentRegistrations: true,
   maintenanceMode: false,
-  requireListingApproval: false
+  requireListingApproval: false,
+  themeMode: 'dark'
 };
+
 
 export const mockAuditLogs: AdminAuditLog[] = [
   {
@@ -628,4 +650,289 @@ export const mockSharedFiles: SharedFile[] = [
     contentPreview: '=== QUANTUM COSMO SCHOOL: SSC ACCOUNTING ===\n• হিসাবের শ্রেণিবিভাগ: সম্পদ, দায়, মালিকানা স্বত্ব, আয়, ব্যয়\n• দুতরফা দাখিলা পদ্ধতি (Double Entry System)\n• রেওয়ামিল (Trial Balance) প্রস্তুত প্রণালী ও অশুদ্ধি সংশোধন'
   }
 ];
+
+export const mockReels: ReelItem[] = [
+  {
+    id: 'reel_1',
+    authorId: 'usr_1',
+    authorName: 'Rakibul Islam',
+    authorAvatar: rakibulAvatar,
+    authorBadge: 'Super Admin • SSC 2027',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-tree-branches-in-the-breeze-1188-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=600&auto=format&fit=crop&q=80',
+    caption: 'Quantum Cosmo School সুন্দর ক্যাম্পাস মোমেন্টস ও SSC 2027 প্রিপারেশন মোটিভেশন! 🌿✨ "কঠিন পরিশ্রমে সাফল্য আসবেই"',
+    musicTitle: 'QCS Campus Melody • Inspiring Acoustic',
+    tags: ['QuantumCosmoSchool', 'SSC2027', 'CampusVibes', 'StudyMotivation'],
+    likes: 42,
+    isLiked: true,
+    commentsCount: 2,
+    createdAt: '2 hours ago',
+    comments: [
+      {
+        id: 'rc_1',
+        authorId: 'usr_2',
+        authorName: 'Sumaiya Akter',
+        authorAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+        content: 'অসাধারণ ক্যাম্পাস ভিডিও রকিবুল ভাই! মোটিভেশন পেয়ে গেলাম 🔥',
+        createdAt: '1 hour ago'
+      },
+      {
+        id: 'rc_2',
+        authorId: 'usr_3',
+        authorName: 'Tanvir Hossain',
+        authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
+        content: 'লামা ক্যাম্পাসের পাহাড়ের দৃশ্য সবসময় সেরা ❤️',
+        createdAt: '45 mins ago'
+      }
+    ]
+  },
+  {
+    id: 'reel_2',
+    authorId: 'usr_2',
+    authorName: 'Sumaiya Akter',
+    authorAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+    authorBadge: 'Science Top Rank • SSC 2027',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-hands-holding-a-green-plant-41861-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=600&auto=format&fit=crop&q=80',
+    caption: 'SSC 2027 জীববিজ্ঞান (Biology) প্র্যাকটিক্যাল ল্যাব — উদ্ভিদের টিস্যু ও সালোকসংশ্লেষণ পরীক্ষা! 🔬🌱',
+    musicTitle: 'Science Lab Focus • Deep Binaural',
+    tags: ['BiologyLab', 'QCS', 'SSC2027', 'Botany'],
+    likes: 38,
+    isLiked: false,
+    commentsCount: 1,
+    createdAt: '5 hours ago',
+    comments: [
+      {
+        id: 'rc_3',
+        authorId: 'usr_6',
+        authorName: 'Tahsin Ahmed',
+        authorAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop&q=80',
+        content: 'স্লাইডগুলো অনেক ক্লিয়ার এসেছে!',
+        createdAt: '3 hours ago'
+      }
+    ]
+  },
+  {
+    id: 'reel_3',
+    authorId: 'usr_3',
+    authorName: 'Tanvir Hossain',
+    authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
+    authorBadge: 'Physics Club Lead',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-man-sitting-in-an-armchair-studying-with-a-laptop-42999-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&auto=format&fit=crop&q=80',
+    caption: 'উচ্চতর গণিত ও ফিজিক্স এর সার্কিট ট্রিকস মাত্র ৬০ সেকেন্ডে! ⚡⚡ SSC 2027 প্রিপারেশন আরও সহজ।',
+    musicTitle: 'Lofi Study Beats • Physics Chill',
+    tags: ['MathTricks', 'PhysicsShortcuts', 'SSC2027'],
+    likes: 29,
+    isLiked: false,
+    commentsCount: 1,
+    createdAt: 'Yesterday',
+    comments: [
+      {
+        id: 'rc_4',
+        authorId: 'usr_1',
+        authorName: 'Rakibul Islam',
+        authorAvatar: rakibulAvatar,
+        content: 'খুব সুন্দর শর্টকাট টেকনিক! শেয়ার করার জন্য ধন্যবাদ।',
+        createdAt: 'Yesterday'
+      }
+    ]
+  }
+];
+
+export const mockPersonalDrive: PersonalDriveItem[] = [
+  {
+    id: 'drive_1',
+    userId: 'usr_1',
+    name: 'Quantum_Cosmo_School_Campus_Photo.jpg',
+    type: 'image',
+    category: 'Memories',
+    url: defaultSchoolCampusImage,
+    size: '2.8 MB',
+    uploadedAt: 'Today at 10:15 AM',
+    description: 'আমাদের স্কুলের প্রধান ক্যাম্পাস ও অডিটোরিয়ামের দৃশ্য',
+    likes: 12,
+    likedByUser: true,
+    comments: [
+      {
+        id: 'dc_1',
+        authorName: 'Sumaiya Akter',
+        authorAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
+        content: 'ছবিটা অনেক সুন্দর এসেছে!',
+        createdAt: '1 hour ago'
+      }
+    ]
+  },
+  {
+    id: 'drive_2',
+    userId: 'usr_1',
+    name: 'SSC_2027_Physics_Handwritten_Notes.pdf',
+    type: 'file',
+    category: 'Class Notes',
+    url: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800&auto=format&fit=crop&q=80',
+    size: '4.2 MB',
+    uploadedAt: 'Yesterday',
+    description: 'পদার্থবিজ্ঞান চ্যাপ্টার ৪ ও চ্যাপ্টার ১১ স্পেশাল নোটস',
+    likes: 8,
+    likedByUser: false,
+    comments: []
+  },
+  {
+    id: 'drive_3',
+    userId: 'usr_1',
+    name: 'School_Annual_Sports_Celebration.mp4',
+    type: 'video',
+    category: 'Memories',
+    url: 'https://assets.mixkit.co/videos/preview/mixkit-tree-branches-in-the-breeze-1188-large.mp4',
+    size: '14.5 MB',
+    uploadedAt: '2 days ago',
+    description: 'কোয়ান্টাম কসমো স্কুল বার্ষিক ক্রীড়া প্রতিযোগিতা ও মার্চপাস্ট মেমোরিজ',
+    likes: 19,
+    likedByUser: true,
+    comments: []
+  }
+];
+
+export const mockEducationalNews: EducationalNewsItem[] = [
+  {
+    id: 'edu_1',
+    title: 'SSC 2027 বিজ্ঞান বিভাগ: উচ্চতর গণিত ও পদার্থবিজ্ঞানে A+ নিশ্চিত করার টপ স্ট্র্যাটেজি',
+    summary: 'বোর্ড পরীক্ষার সৃজনশীল প্রশ্ন (CQ) এবং বহুনির্বাচনী (MCQ) অংশে ১০০% নির্ভুল উত্তরের জন্য অধ্যায়ভিত্তিক টাইম-ম্যানেজমেন্ট গাইডলাইন।',
+    source: 'QCS Academic Board',
+    category: 'SSC 2027',
+    imageUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&auto=format&fit=crop&q=80',
+    readTime: '3 min read',
+    publishedAt: 'Today, 10:00 AM',
+    likes: 54,
+    isLiked: true,
+    comments: [
+      {
+        id: 'ec_1',
+        authorName: 'Rakibul Islam',
+        authorAvatar: rakibulAvatar,
+        content: 'সবাই এই রুলগুলো অবশ্যই নোট ডাউন করে রাখবেন!',
+        createdAt: '2 hours ago'
+      }
+    ]
+  },
+  {
+    id: 'edu_2',
+    title: 'বাংলাদেশ বিজ্ঞান একাডেমি ও জাতীয় অলিম্পিয়াড ২০২৭ এর প্রস্তুতি ও নিয়মাবলি',
+    summary: 'পদার্থবিজ্ঞান, গণিত ও ইনফরমেটিক্স অলিম্পিয়াডে কোয়ান্টাম কসমো স্কুলের শিক্ষার্থীদের অংশগ্রহণের নিয়ম ও বাছাই পর্বের সিলেবাস।',
+    source: 'Bangladesh Science Olympiad',
+    category: 'Science & Tech',
+    imageUrl: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=800&auto=format&fit=crop&q=80',
+    readTime: '4 min read',
+    publishedAt: 'Yesterday',
+    likes: 39,
+    isLiked: false,
+    comments: []
+  },
+  {
+    id: 'edu_3',
+    title: 'SSC ইংরেজি ২য় পত্র: রাইটিং পার্ট ও গ্রামারের সহজ ৫০টি রুলস',
+    summary: 'Right form of verbs, Connectors, Modifiers, Transformation of Sentences এবং CV Writing এ ফুল মার্কস পাওয়ার সেরা টিপস।',
+    source: 'English Language Department',
+    category: 'English & ICT',
+    imageUrl: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800&auto=format&fit=crop&q=80',
+    readTime: '5 min read',
+    publishedAt: '2 days ago',
+    likes: 47,
+    isLiked: false,
+    comments: []
+  },
+  {
+    id: 'edu_4',
+    title: 'জ্যোতির্বিজ্ঞান ও মহাকাশ বিজ্ঞান: নাসার নতুন জেমস ওয়েব স্পেস টেলিস্কোপের আবিষ্কার',
+    summary: 'মহাবিশ্বের প্রাচীনতম গ্যালাক্সি ও কৃষ্ণগহ্বরের রহস্য নিয়ে বিজ্ঞান ক্লাবের জন্য আকর্ষণীয় তথ্য ও গবেষণা রিপোর্ট।',
+    source: 'NASA & QCS Astronomy Club',
+    category: 'General Knowledge',
+    imageUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80',
+    readTime: '3 min read',
+    publishedAt: '3 days ago',
+    likes: 62,
+    isLiked: true,
+    comments: []
+  }
+];
+
+export const mockHelpTickets: HelpTicket[] = [
+  {
+    id: 'ticket_1',
+    userId: 'usr_5',
+    userName: 'Arefin Shuvo',
+    userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
+    userEmail: 'arefin.qcs27@gmail.com',
+    subject: 'পাসওয়ার্ড মনে নেই — নতুন পাসওয়ার্ড দরকার',
+    message: 'আসসালামু আলাইকুম অ্যাডমিন ভাই। আমি আমার অ্যাকাউন্টের পাসওয়ার্ড ভুলে গেছি। অনুগ্রহ করে রিসেট করে দিন।',
+    category: 'password_reset',
+    status: 'open',
+    createdAt: '1 hour ago'
+  },
+  {
+    id: 'ticket_2',
+    userId: 'usr_4',
+    userName: 'Nusrat Jahan',
+    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+    userEmail: 'nusrat.qcs27@gmail.com',
+    subject: 'বিজনেস স্টাডিজ গ্রুপ তৈরি সম্পর্কিত প্রশ্ন',
+    message: 'ক্লাউড ড্রাইভে ফাইলের সাইজ লিমিট কত? আমি একাউন্টিং লেকচার ভিডিও আপলোড করতে চাই।',
+    category: 'academic',
+    status: 'resolved',
+    adminReply: 'প্রিয় নুসরাত, ক্লাউড ড্রাইভে আপনি যেকোনো সাইজের ফাইল বা ভিডিও নিরাপদে রাখতে পারবেন।',
+    createdAt: 'Yesterday'
+  }
+];
+
+export const mockTruthOrDareGames: GameTruthOrDare[] = [
+  {
+    id: 'td_1',
+    type: 'truth',
+    question: 'Quantum Cosmo School-এ তোমার প্রিয় শিক্ষক কে এবং কেন?',
+    category: 'School Life'
+  },
+  {
+    id: 'td_2',
+    type: 'truth',
+    question: 'SSC 2027 পরীক্ষার পর তুমি কোন কলেজে পড়তে চাও এবং ভবিষ্যৎ স্বপ্ন কী?',
+    category: 'SSC Studies'
+  },
+  {
+    id: 'td_3',
+    type: 'truth',
+    question: 'আমাদের ব্যাচের মধ্যে কার হ্যান্ডরাইটিং বা নোটস তোমার সবচেয়ে বেশি ভালো লাগে?',
+    category: 'Fun & Friendship'
+  },
+  {
+    id: 'td_4',
+    type: 'dare',
+    question: 'চ্যাটে এখনই ভয়েস মেসেজ পাঠিয়ে স্কুলের যেকোনো একটি শপথ বা অ্যাসেম্বলির গান আবৃত্তি করে শোনাও! 🎤',
+    category: 'Crazy Dares'
+  },
+  {
+    id: 'td_5',
+    type: 'dare',
+    question: 'ফিজিক্স অথবা কেমিস্ট্রির যেকোনো ৩টি কঠিন সূত্রের নাম দ্রুত ৩০ সেকেন্ডের মধ্যে লিখে পাঠাও! ⚡',
+    category: 'SSC Studies'
+  },
+  {
+    id: 'td_6',
+    type: 'truth',
+    question: 'ক্যাম্পাসে তোমার জীবনের সবচেয়ে স্মরণীয় বা মজার ঘটনা কোনটি?',
+    category: 'School Life'
+  },
+  {
+    id: 'td_7',
+    type: 'dare',
+    question: 'ক্লাসের যেকোনো সহপাঠীর প্রোফাইল ছবিতে গিয়ে একটি পজিটিভ ও সুন্দর কমেন্ট করে আসো! ✨',
+    category: 'Fun & Friendship'
+  },
+  {
+    id: 'td_8',
+    type: 'truth',
+    question: 'কোন বিষয়টি তোমার কাছে সবচেয়ে বেশি কঠিন লাগে এবং সেটি সহজ করার জন্য তুমি কী করছো?',
+    category: 'SSC Studies'
+  }
+];
+
 

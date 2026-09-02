@@ -12,7 +12,14 @@ import {
   AcademicStatus,
   AdminAuditLog,
   SystemSettings,
-  UserRole
+  UserRole,
+  ThemeMode,
+  PersonalDriveItem,
+  ReelItem,
+  EducationalNewsItem,
+  HelpTicket,
+  UserWarning,
+  GameTruthOrDare
 } from '../types';
 import { 
   mockUsers, 
@@ -21,9 +28,15 @@ import {
   mockChannels, 
   mockChannelMessages, 
   mockDiscussionPosts, 
-  mockSharedFiles,
-  mockAuditLogs,
-  defaultSystemSettings
+  mockSharedFiles, 
+  mockAuditLogs, 
+  defaultSystemSettings,
+  mockReels,
+  mockPersonalDrive,
+  mockEducationalNews,
+  mockHelpTickets,
+  mockTruthOrDareGames,
+  defaultSchoolLogo
 } from '../data/mockData';
 import { computeSha256Digest } from '../utils/crypto';
 import { Language, translations, Translations } from '../utils/translations';
@@ -46,11 +59,16 @@ interface AppContextType {
   t: Translations;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
   
-  // Campus Real Photo
+  // Campus Branding & Photo & Logo
   campusPhoto: string;
   setCampusPhoto: (photoUrl: string) => void;
   resetCampusPhoto: () => void;
+  appLogo: string;
+  updateAppLogo: (logoUrl: string) => void;
+  updateSchoolCover: (coverUrl: string) => void;
 
   // User Profile & Roles
   currentUser: User;
@@ -60,27 +78,67 @@ interface AppContextType {
   updateUserProfile: (profile: Partial<User>) => void;
   updateUserStatus: (status: AcademicStatus, focus?: string) => void;
   switchUserPersona: (userId: string) => void;
+  blockUser: (targetUserId: string) => void;
+  unblockUser: (targetUserId: string) => void;
 
-  // Master Admin Controls
+  // Master Admin Controls & Password Recovery
   promoteUser: (userId: string, newRole: UserRole) => void;
   deleteUser: (userId: string) => void;
   banUser: (userId: string, isBanned: boolean) => void;
   toggleUserVerification: (userId: string) => void;
-  deleteMarketplaceItem: (itemId: string) => void;
-  deleteDiscussionPost: (postId: string) => void;
-  deleteChannel: (channelId: string) => void;
-  createGroupChannel: (channel: { name: string; courseCode: string; department: string; description?: string; avatar?: string; isPrivate?: boolean }) => void;
-  inviteToGroupChannel: (channelId: string, userId: string) => void;
-  deleteSharedFile: (fileId: string) => void;
+  adminResetUserPassword: (userId: string, newPass: string) => { success: boolean; message: string };
+  adminLoginAsUser: (userId: string) => void;
+  issueUserWarning: (userId: string, reason: string) => void;
+  dismissUserWarning: (warningId: string) => void;
   systemSettings: SystemSettings;
   updateSystemSettings: (settings: Partial<SystemSettings>) => void;
   auditLogs: AdminAuditLog[];
   clearAuditLogs: () => void;
 
+  // Personal Cloud Drive (Personal storage for pictures, videos, files)
+  personalDriveItems: PersonalDriveItem[];
+  addPersonalDriveItem: (item: Omit<PersonalDriveItem, 'id' | 'userId' | 'uploadedAt' | 'likes' | 'comments'>) => void;
+  deletePersonalDriveItem: (id: string) => void;
+  toggleLikeDriveItem: (id: string) => void;
+  addCommentToDriveItem: (id: string, text: string) => void;
+
+  // Reels
+  reels: ReelItem[];
+  addReel: (reel: Omit<ReelItem, 'id' | 'authorId' | 'authorName' | 'authorAvatar' | 'authorBadge' | 'createdAt' | 'likes' | 'commentsCount' | 'comments'>) => void;
+  toggleLikeReel: (reelId: string) => void;
+  addCommentToReel: (reelId: string, text: string) => void;
+  deleteReel: (reelId: string) => void;
+
+  // Educational News & Automated Updates
+  educationalNews: EducationalNewsItem[];
+  addEducationalNews: (news: Omit<EducationalNewsItem, 'id' | 'publishedAt' | 'likes' | 'comments'>) => void;
+  toggleLikeEduNews: (id: string) => void;
+  addCommentToEduNews: (id: string, text: string) => void;
+  deleteEduNews: (id: string) => void;
+
+  // Help Desk / Support Tickets
+  helpTickets: HelpTicket[];
+  isHelpModalOpen: boolean;
+  setIsHelpModalOpen: (open: boolean) => void;
+  submitHelpTicket: (subject: string, message: string, category: HelpTicket['category'], voiceAudioUrl?: string) => void;
+  resolveHelpTicket: (ticketId: string, reply?: string) => void;
+  deleteHelpTicket: (ticketId: string) => void;
+
+  // Study Games & Truth or Dare
+  gamesList: GameTruthOrDare[];
+  addGameTruthOrDare: (item: Omit<GameTruthOrDare, 'id'>) => void;
+  deleteGameTruthOrDare: (id: string) => void;
+
+  // In-App Google & Campus Search
+  isGoogleSearchOpen: boolean;
+  setIsGoogleSearchOpen: (open: boolean) => void;
+
   // Marketplace
   marketplaceItems: MarketplaceItem[];
   addMarketplaceItem: (item: Omit<MarketplaceItem, 'id' | 'createdAt' | 'likes' | 'views' | 'sellerId' | 'sellerName' | 'sellerAvatar' | 'sellerDepartment' | 'sellerRating' | 'sellerVerified' | 'status'>) => void;
   toggleLikeItem: (id: string) => void;
+  addCommentToItem: (itemId: string, text: string) => void;
+  deleteMarketplaceItem: (itemId: string) => void;
 
   // Chat & Channels
   directMessages: DirectMessage[];
@@ -88,19 +146,27 @@ interface AppContextType {
   channelMessages: { [channelId: string]: ChannelMessage[] };
   activeChatTarget: { type: 'direct' | 'channel'; id: string };
   setActiveChatTarget: (target: { type: 'direct' | 'channel'; id: string }) => void;
-  sendDirectMessage: (receiverId: string, content: string, attachment?: DirectMessage['attachment']) => Promise<void>;
-  sendChannelMessage: (channelId: string, content: string, attachment?: ChannelMessage['attachment']) => void;
+  sendDirectMessage: (receiverId: string, content: string, attachment?: DirectMessage['attachment'], voiceAudioUrl?: string, voiceDurationSec?: number) => Promise<void>;
+  sendChannelMessage: (channelId: string, content: string, attachment?: ChannelMessage['attachment'], voiceAudioUrl?: string, voiceDurationSec?: number) => void;
+  deleteChannel: (channelId: string) => void;
+  createGroupChannel: (channel: { name: string; courseCode: string; department: string; description?: string; avatar?: string; isPrivate?: boolean }) => void;
+  inviteToGroupChannel: (channelId: string, userId: string) => void;
+  removeMemberFromGroup: (channelId: string, userId: string) => void;
 
   // Feed & Discussions
   posts: DiscussionPost[];
   addPost: (post: Omit<DiscussionPost, 'id' | 'createdAt' | 'upvotes' | 'commentsCount' | 'comments' | 'authorId' | 'authorName' | 'authorAvatar' | 'authorDepartment' | 'authorSemester'>) => void;
   toggleUpvotePost: (postId: string) => void;
   addCommentToPost: (postId: string, commentText: string) => void;
+  deleteDiscussionPost: (postId: string) => void;
 
-  // Cloud Vault
+  // Cloud Vault (Public Shared Notes)
   sharedFiles: SharedFile[];
   addSharedFile: (file: Omit<SharedFile, 'id' | 'uploadedAt' | 'uploaderId' | 'uploaderName' | 'uploaderAvatar' | 'hash' | 'downloadCount'>) => Promise<void>;
   downloadFile: (fileId: string) => void;
+  toggleLikeSharedFile: (fileId: string) => void;
+  addCommentToSharedFile: (fileId: string, text: string) => void;
+  deleteSharedFile: (fileId: string) => void;
 
   // Video/Audio Study Call
   activeCall: ActiveStudyCall | null;
@@ -113,7 +179,7 @@ interface AppContextType {
   toggleScreenShare: () => void;
   updateSharedCallNotes: (notes: string) => void;
 
-  // Modals & Notifications
+  // Modals & Notifications & Credentials
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   logout: () => void;
@@ -129,6 +195,7 @@ interface AppContextType {
     bio?: string;
     avatar?: string;
     phone?: string;
+    schoolCover?: string;
     currentStudyFocus?: string;
     interests?: string[];
   }) => { success: boolean; message: string };
@@ -145,6 +212,7 @@ interface AppContextType {
     semester?: string;
     university?: string;
     avatar?: string;
+    schoolCover?: string;
     bio?: string;
     currentStudyFocus?: string;
     interests?: string[];
@@ -156,7 +224,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('marketplace');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('welcome');
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('classmate_users');
     if (saved) {
@@ -169,12 +237,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return saved || 'usr_1';
   });
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem('classmate_theme_mode');
+    return (saved as ThemeMode) || 'dark';
+  });
   const [language, setLanguage] = useState<Language>('bn');
   const [campusPhoto, setCampusPhotoState] = useState<string>(defaultSchoolCampusImage);
+  const [appLogo, setAppLogoState] = useState<string>(() => {
+    const saved = localStorage.getItem('classmate_app_logo');
+    return saved || defaultSchoolLogo;
+  });
 
   const t = translations[language];
 
-  // Persist users and current user ID
+  // Modals state
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isGoogleSearchOpen, setIsGoogleSearchOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<ToastInfo | null>(null);
+
+  // System Settings State
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
+    const saved = localStorage.getItem('classmate_system_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (!parsed.appLogo) parsed.appLogo = defaultSchoolLogo;
+        if (!parsed.defaultCampusPhoto) parsed.defaultCampusPhoto = defaultSchoolCampusImage;
+        return parsed;
+      } catch { return defaultSystemSettings; }
+    }
+    return defaultSystemSettings;
+  });
+
+  // Persist basic states
   useEffect(() => {
     localStorage.setItem('classmate_users', JSON.stringify(users));
   }, [users]);
@@ -183,14 +279,60 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('classmate_current_user_id', currentUserId);
   }, [currentUserId]);
 
+  useEffect(() => {
+    localStorage.setItem('classmate_theme_mode', themeMode);
+    document.documentElement.setAttribute('data-theme', themeMode);
+    if (themeMode === 'light') {
+      setIsDarkMode(false);
+      document.documentElement.classList.remove('dark');
+    } else {
+      setIsDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
+  }, [themeMode]);
+
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode);
+    showToast(
+      language === 'bn' ? `থিম পরিবর্তন হয়েছে (${mode.toUpperCase()})` : `Theme Mode: ${mode.toUpperCase()}`,
+      language === 'bn' ? 'অ্যাপ্লিকেশনের ভিজ্যুয়াল স্টাইল আপডেট করা হয়েছে।' : 'Visual color mood updated.',
+      'info'
+    );
+  };
+
   const toggleLanguage = () => {
     setLanguage(prev => (prev === 'bn' ? 'en' : 'bn'));
+  };
+
+  const toggleDarkMode = () => {
+    setThemeMode(themeMode === 'dark' ? 'light' : 'dark');
+  };
+
+  const updateAppLogo = (logoUrl: string) => {
+    setAppLogoState(logoUrl);
+    localStorage.setItem('classmate_app_logo', logoUrl);
+    setSystemSettings(prev => ({ ...prev, appLogo: logoUrl }));
+    addAuditLog('School Logo Updated', 'Branding', 'system', 'Admin updated official campus emblem logo.');
+    showToast(
+      language === 'bn' ? 'স্কুল লোগো আপডেট হয়েছে 🏫' : 'Campus Logo Updated 🏫',
+      language === 'bn' ? 'নতুন লোগো পুরো প্ল্যাটফর্মে যুক্ত হয়েছে।' : 'Official school logo updated across platform.',
+      'success'
+    );
+  };
+
+  const updateSchoolCover = (coverUrl: string) => {
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, schoolCover: coverUrl } : u));
+    showToast(
+      language === 'bn' ? 'স্কুল কভার ফটো আপডেট হয়েছে 📸' : 'Campus Cover Updated 📸',
+      language === 'bn' ? 'আপনার ব্যক্তিগত প্রোফাইলে স্কুলের কভার সেট করা হয়েছে।' : 'Personal school cover photo updated.',
+      'success'
+    );
   };
 
   const setCampusPhoto = (photoUrl: string) => {
     setCampusPhotoState(photoUrl);
     showToast(
-      language === 'bn' ? 'স্কুলের ছবি আপডেট হয়েছে 📸' : 'Campus Photo Updated 📸',
+      language === 'bn' ? 'স্কুলের ফটো আপডেট হয়েছে 📸' : 'Campus Photo Updated 📸',
       language === 'bn' ? 'আপনার আসল স্কুলের ছবি প্ল্যাটফর্মে সফলভাবে সেট করা হয়েছে।' : 'Real school picture has been set across the campus platform.',
       'success'
     );
@@ -205,18 +347,300 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  // Sync dark class on body/html
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => setIsDarkMode(prev => !prev);
-
   const currentUser = users.find(u => u.id === currentUserId) || users[0];
+
+  // Personal Drive State
+  const [personalDriveItems, setPersonalDriveItems] = useState<PersonalDriveItem[]>(() => {
+    const saved = localStorage.getItem('classmate_personal_drive');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return mockPersonalDrive; }
+    }
+    return mockPersonalDrive;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('classmate_personal_drive', JSON.stringify(personalDriveItems));
+  }, [personalDriveItems]);
+
+  const addPersonalDriveItem = (item: Omit<PersonalDriveItem, 'id' | 'userId' | 'uploadedAt' | 'likes' | 'comments'>) => {
+    const newItem: PersonalDriveItem = {
+      ...item,
+      id: `drive_${Date.now()}`,
+      userId: currentUser.id,
+      uploadedAt: 'Just now',
+      likes: 0,
+      likedByUser: false,
+      comments: []
+    };
+    setPersonalDriveItems(prev => [newItem, ...prev]);
+    showToast(
+      language === 'bn' ? 'ড্রাইভে ফাইল সেভ হয়েছে 📁' : 'Saved to Personal Drive 📁',
+      `"${newItem.name}" is securely stored in your personal cloud.`,
+      'success'
+    );
+  };
+
+  const deletePersonalDriveItem = (id: string) => {
+    setPersonalDriveItems(prev => prev.filter(item => item.id !== id));
+    showToast(
+      language === 'bn' ? 'ড্রাইভ থেকে ডিলিট হয়েছে' : 'Item Deleted',
+      language === 'bn' ? 'ফাইলটি আপনার ড্রাইভ থেকে মুছে ফেলা হয়েছে।' : 'Item removed from your personal drive.',
+      'info'
+    );
+  };
+
+  const toggleLikeDriveItem = (id: string) => {
+    setPersonalDriveItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const isLiked = item.likedByUser;
+        return {
+          ...item,
+          likes: isLiked ? item.likes - 1 : item.likes + 1,
+          likedByUser: !isLiked
+        };
+      }
+      return item;
+    }));
+  };
+
+  const addCommentToDriveItem = (id: string, text: string) => {
+    setPersonalDriveItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return {
+          ...item,
+          comments: [
+            ...item.comments,
+            {
+              id: `dc_${Date.now()}`,
+              authorName: currentUser.name,
+              authorAvatar: currentUser.avatar,
+              content: text,
+              createdAt: 'Just now'
+            }
+          ]
+        };
+      }
+      return item;
+    }));
+    showToast(language === 'bn' ? 'মন্তব্য যোগ হয়েছে' : 'Comment Added', 'Your comment has been posted.', 'success');
+  };
+
+  // Reels State
+  const [reels, setReels] = useState<ReelItem[]>(() => {
+    const saved = localStorage.getItem('classmate_reels');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return mockReels; }
+    }
+    return mockReels;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('classmate_reels', JSON.stringify(reels));
+  }, [reels]);
+
+  const addReel = (reel: Omit<ReelItem, 'id' | 'authorId' | 'authorName' | 'authorAvatar' | 'authorBadge' | 'createdAt' | 'likes' | 'commentsCount' | 'comments'>) => {
+    const newReel: ReelItem = {
+      ...reel,
+      id: `reel_${Date.now()}`,
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      authorAvatar: currentUser.avatar,
+      authorBadge: `${currentUser.department.split(' ')[0]} • SSC 2027`,
+      createdAt: 'Just now',
+      likes: 1,
+      isLiked: true,
+      commentsCount: 0,
+      comments: []
+    };
+    setReels(prev => [newReel, ...prev]);
+    showToast(
+      language === 'bn' ? 'রিল আপলোড সফল 🎬' : 'Reel Published 🎬',
+      language === 'bn' ? 'আপনার ক্যাম্পাস রিল প্রকাশ করা হয়েছে।' : 'Your reel is now live on campus feed.',
+      'success'
+    );
+  };
+
+  const toggleLikeReel = (reelId: string) => {
+    setReels(prev => prev.map(r => {
+      if (r.id === reelId) {
+        const isLiked = r.isLiked;
+        return {
+          ...r,
+          likes: isLiked ? r.likes - 1 : r.likes + 1,
+          isLiked: !isLiked
+        };
+      }
+      return r;
+    }));
+  };
+
+  const addCommentToReel = (reelId: string, text: string) => {
+    setReels(prev => prev.map(r => {
+      if (r.id === reelId) {
+        const newComm = {
+          id: `rc_${Date.now()}`,
+          authorId: currentUser.id,
+          authorName: currentUser.name,
+          authorAvatar: currentUser.avatar,
+          content: text,
+          createdAt: 'Just now'
+        };
+        return {
+          ...r,
+          commentsCount: r.commentsCount + 1,
+          comments: [...r.comments, newComm]
+        };
+      }
+      return r;
+    }));
+  };
+
+  const deleteReel = (reelId: string) => {
+    setReels(prev => prev.filter(r => r.id !== reelId));
+    showToast(language === 'bn' ? 'রিল মুছে ফেলা হয়েছে' : 'Reel Deleted', 'Reel removed from campus reels.', 'info');
+  };
+
+  // Educational News State
+  const [educationalNews, setEducationalNews] = useState<EducationalNewsItem[]>(() => {
+    const saved = localStorage.getItem('classmate_edu_news');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return mockEducationalNews; }
+    }
+    return mockEducationalNews;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('classmate_edu_news', JSON.stringify(educationalNews));
+  }, [educationalNews]);
+
+  const addEducationalNews = (news: Omit<EducationalNewsItem, 'id' | 'publishedAt' | 'likes' | 'comments'>) => {
+    const newNews: EducationalNewsItem = {
+      ...news,
+      id: `edu_${Date.now()}`,
+      publishedAt: 'Just now',
+      likes: 1,
+      isLiked: true,
+      comments: []
+    };
+    setEducationalNews(prev => [newNews, ...prev]);
+    showToast(language === 'bn' ? 'শিক্ষামূলক আপডেট প্রকাশিত' : 'Educational News Published', newNews.title, 'success');
+  };
+
+  const toggleLikeEduNews = (id: string) => {
+    setEducationalNews(prev => prev.map(n => {
+      if (n.id === id) {
+        const isLiked = n.isLiked;
+        return { ...n, likes: isLiked ? n.likes - 1 : n.likes + 1, isLiked: !isLiked };
+      }
+      return n;
+    }));
+  };
+
+  const addCommentToEduNews = (id: string, text: string) => {
+    setEducationalNews(prev => prev.map(n => {
+      if (n.id === id) {
+        return {
+          ...n,
+          comments: [
+            ...n.comments,
+            {
+              id: `ec_${Date.now()}`,
+              authorName: currentUser.name,
+              authorAvatar: currentUser.avatar,
+              content: text,
+              createdAt: 'Just now'
+            }
+          ]
+        };
+      }
+      return n;
+    }));
+  };
+
+  const deleteEduNews = (id: string) => {
+    setEducationalNews(prev => prev.filter(n => n.id !== id));
+    showToast(language === 'bn' ? 'নিউজ মুছে ফেলা হয়েছে' : 'News Deleted', 'Educational item removed.', 'info');
+  };
+
+  // Help Desk & Tickets
+  const [helpTickets, setHelpTickets] = useState<HelpTicket[]>(() => {
+    const saved = localStorage.getItem('classmate_help_tickets');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return mockHelpTickets; }
+    }
+    return mockHelpTickets;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('classmate_help_tickets', JSON.stringify(helpTickets));
+  }, [helpTickets]);
+
+  const submitHelpTicket = (subject: string, message: string, category: HelpTicket['category'], voiceAudioUrl?: string) => {
+    const newTicket: HelpTicket = {
+      id: `ticket_${Date.now()}`,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userAvatar: currentUser.avatar,
+      userEmail: currentUser.email,
+      subject,
+      message,
+      voiceAudioUrl,
+      category,
+      status: 'open',
+      createdAt: 'Just now'
+    };
+    setHelpTickets(prev => [newTicket, ...prev]);
+    setIsHelpModalOpen(false);
+    showToast(
+      language === 'bn' ? 'হেল্প টিকিট জমা হয়েছে 📩' : 'Help Ticket Sent 📩',
+      language === 'bn' ? 'অ্যাডমিন খুব দ্রুত আপনার সমস্যার সমাধান করে জানাবেন।' : 'Admin has received your ticket and will assist you.',
+      'success'
+    );
+  };
+
+  const resolveHelpTicket = (ticketId: string, reply?: string) => {
+    setHelpTickets(prev => prev.map(t => t.id === ticketId ? {
+      ...t,
+      status: 'resolved',
+      adminReply: reply || (language === 'bn' ? 'অ্যাডমিন কর্তৃক সমস্যা সমাধান করা হয়েছে।' : 'Resolved by Admin.')
+    } : t));
+    showToast(language === 'bn' ? 'টিকিট সমাধান সম্পন্ন' : 'Ticket Resolved', 'Marked as resolved.', 'success');
+  };
+
+  const deleteHelpTicket = (ticketId: string) => {
+    setHelpTickets(prev => prev.filter(t => t.id !== ticketId));
+  };
+
+  // Study Games & Truth or Dare State
+  const [gamesList, setGamesList] = useState<GameTruthOrDare[]>(() => {
+    const saved = localStorage.getItem('classmate_games_list');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return mockTruthOrDareGames; }
+    }
+    return mockTruthOrDareGames;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('classmate_games_list', JSON.stringify(gamesList));
+  }, [gamesList]);
+
+  const addGameTruthOrDare = (item: Omit<GameTruthOrDare, 'id'>) => {
+    const newItem: GameTruthOrDare = {
+      ...item,
+      id: `td_${Date.now()}`
+    };
+    setGamesList(prev => [newItem, ...prev]);
+    showToast(
+      language === 'bn' ? 'নতুন প্রশ্ন/ডেয়ার যুক্ত হয়েছে 🎯' : 'New Challenge Added 🎯',
+      newItem.question,
+      'success'
+    );
+  };
+
+  const deleteGameTruthOrDare = (id: string) => {
+    setGamesList(prev => prev.filter(g => g.id !== id));
+    showToast(language === 'bn' ? 'মুছে ফেলা হয়েছে' : 'Removed', 'Challenge removed.', 'info');
+  };
 
   // Marketplace State
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>(mockMarketplaceItems);
@@ -267,26 +691,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [activeCall, setActiveCall] = useState<ActiveStudyCall | null>(null);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
 
-  // Modal & Toast
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<ToastInfo | null>(null);
-
-  // System & Admin State
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
-    const saved = localStorage.getItem('classmate_system_settings');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.schoolName === 'ClassMate University Campus Hub' || !parsed.schoolName) {
-          parsed.schoolName = defaultSystemSettings.schoolName;
-          parsed.announcement = defaultSystemSettings.announcement;
-        }
-        return parsed;
-      } catch { return defaultSystemSettings; }
-    }
-    return defaultSystemSettings;
-  });
-
+  // Audit Logs
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>(() => {
     const saved = localStorage.getItem('classmate_audit_logs');
     if (saved) {
@@ -346,14 +751,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
 
-    // IMMUNITY RULE: Super Admin Rakibul Islam CANNOT be demoted or removed by anyone!
     if (targetUser.id === 'usr_1' || targetUser.isImmortalSuperAdmin) {
       soundManager.playHangupSound();
       showToast(
         language === 'bn' ? 'অননুমোদিত: স্থায়ী সুপার অ্যাডমিন!' : 'Forbidden: Immortal Super Admin',
         language === 'bn' 
-          ? '⚠️ সুপার অ্যাডমিন রকিবুল ইসলাম এই প্ল্যাটফর্মের চিরস্থায়ী প্রতিষ্ঠাতা ও সর্বেসর্বা। তাকে ডিমোট বা সরানো কঠোরভাবে অসম্ভব!' 
-          : '⚠️ Founder & Super Admin Rakibul Islam cannot be removed or demoted. He holds permanent immortal root authority.',
+          ? '⚠️ সুপার অ্যাডমিন রকিবুল ইসলাম এই প্ল্যাটফর্মের চিরস্থায়ী প্রতিষ্ঠাতা ও সর্বেসর্বা।' 
+          : '⚠️ Founder & Super Admin Rakibul Islam holds permanent immortal root authority.',
         'info'
       );
       return;
@@ -361,7 +765,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
     const roleTitle = newRole === 'admin' ? 'Admin (অ্যাডমিন)' : newRole === 'moderator' ? 'Moderator (মডারেটর)' : 'Student (শিক্ষার্থী)';
-    addAuditLog('Role Changed', targetUser.name, 'role', `Changed role from ${targetUser.role || 'student'} to ${newRole}`);
+    addAuditLog('Role Changed', targetUser.name, 'role', `Changed role to ${newRole}`);
     showToast(
       language === 'bn' ? 'ব্যবহারকারীর রোল পরিবর্তিত হয়েছে' : 'Role Updated',
       language === 'bn' ? `${targetUser.name}-কে ${roleTitle} হিসেবে নিযুক্ত করা হয়েছে।` : `${targetUser.name} is now designated as ${newRole.toUpperCase()}.`,
@@ -373,14 +777,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
 
-    // IMMUNITY RULE: Super Admin Rakibul Islam CANNOT be deleted!
     if (targetUser.id === 'usr_1' || targetUser.isImmortalSuperAdmin) {
       soundManager.playHangupSound();
       showToast(
         language === 'bn' ? 'অ্যাকশন বাতিল: সুপার অ্যাডমিন সুরক্ষা!' : 'Action Denied: Super Admin Immunity',
         language === 'bn' 
-          ? '🚫 সুপার অ্যাডমিন রকিবুল ইসলামকে ডিলিট বা রিমুভ করা কঠোরভাবে নিষিদ্ধ ও অসম্ভব!' 
-          : '🚫 Super Admin Rakibul Islam cannot be deleted. Permanent root immunity active.',
+          ? '🚫 সুপার অ্যাডমিন রকিবুল ইসলামকে ডিলিট করা অসম্ভব!' 
+          : '🚫 Super Admin Rakibul Islam cannot be deleted.',
         'info'
       );
       return;
@@ -399,7 +802,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return;
 
-    // IMMUNITY RULE: Super Admin cannot be banned!
     if (targetUser.id === 'usr_1' || targetUser.isImmortalSuperAdmin) {
       soundManager.playHangupSound();
       showToast(
@@ -427,13 +829,134 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Peer to peer blocking
+  const blockUser = (targetUserId: string) => {
+    const target = users.find(u => u.id === targetUserId);
+    if (!target) return;
+    setUsers(prev => prev.map(u => {
+      if (u.id === currentUser.id) {
+        const blocked = u.blockedUserIds || [];
+        if (!blocked.includes(targetUserId)) {
+          return { ...u, blockedUserIds: [...blocked, targetUserId] };
+        }
+      }
+      return u;
+    }));
+    showToast(
+      language === 'bn' ? 'ব্যবহারকারী ব্লক করা হয়েছে' : 'User Blocked',
+      `${target.name} ${language === 'bn' ? 'কে আপনি ব্লক করেছেন।' : 'has been blocked from interacting with you.'}`,
+      'info'
+    );
+  };
+
+  const unblockUser = (targetUserId: string) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === currentUser.id) {
+        return { ...u, blockedUserIds: (u.blockedUserIds || []).filter(id => id !== targetUserId) };
+      }
+      return u;
+    }));
+    showToast(
+      language === 'bn' ? 'আনব্লক সম্পন্ন' : 'User Unblocked',
+      language === 'bn' ? 'ব্লক প্রত্যাহার করা হয়েছে।' : 'User unblocked successfully.',
+      'success'
+    );
+  };
+
+  // Admin Warning System
+  const issueUserWarning = (userId: string, reason: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+
+    const newWarning: UserWarning = {
+      id: `warn_${Date.now()}`,
+      userId,
+      issuedBy: currentUser.name,
+      reason,
+      timestamp: 'Just now',
+      read: false
+    };
+
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        return { ...u, warnings: [...(u.warnings || []), newWarning] };
+      }
+      return u;
+    }));
+
+    addAuditLog('Warning Issued', target.name, 'warning', `Issued warning: "${reason}"`);
+    showToast(
+      language === 'bn' ? 'সতর্কবার্তা পাঠানো হয়েছে ⚠️' : 'Warning Sent ⚠️',
+      `${target.name} ${language === 'bn' ? 'কে অফিসিয়াল সতর্কতা পাঠানো হয়েছে।' : 'has received official warning notice.'}`,
+      'info'
+    );
+  };
+
+  const dismissUserWarning = (warningId: string) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === currentUser.id) {
+        return { ...u, warnings: (u.warnings || []).filter(w => w.id !== warningId) };
+      }
+      return u;
+    }));
+  };
+
+  // Admin Direct Password Management & 1-Click Login
+  const adminResetUserPassword = (userId: string, newPass: string): { success: boolean; message: string } => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return { success: false, message: 'User not found' };
+
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPass.trim() } : u));
+    addAuditLog('Admin Password Reset', target.name, 'password_reset', `Admin reset password for ${target.email}`);
+    
+    const msg = language === 'bn' 
+      ? `${target.name}-এর নতুন পাসওয়ার্ড সেট করা হয়েছে: "${newPass.trim()}"`
+      : `Password for ${target.name} reset to: "${newPass.trim()}"`;
+    showToast(language === 'bn' ? 'পাসওয়ার্ড সেট সফল 🔑' : 'Password Reset 🔑', msg, 'success');
+    return { success: true, message: msg };
+  };
+
+  const adminLoginAsUser = (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    setCurrentUserId(userId);
+    setActiveTab('profile');
+    showToast(
+      language === 'bn' ? 'সরাসরি লগইন সম্পন্ন 🚀' : 'Instant Login Active 🚀',
+      `Logged in as ${target.name} (${target.department.split(' ')[0]})`,
+      'success'
+    );
+  };
+
   const deleteMarketplaceItem = (itemId: string) => {
     const item = marketplaceItems.find(i => i.id === itemId);
     setMarketplaceItems(prev => prev.filter(i => i.id !== itemId));
     if (item) {
       addAuditLog('Marketplace Item Removed', item.title, 'delete', `Removed listing by ${item.sellerName}`);
-      showToast(language === 'bn' ? 'লিস্টিং মুছে ফেলা হয়েছে' : 'Listing Removed', `"${item.title}" removed by admin.`, 'info');
+      showToast(language === 'bn' ? 'লিস্টিং মুছে ফেলা হয়েছে' : 'Listing Removed', `"${item.title}" removed.`, 'info');
     }
+  };
+
+  const addCommentToItem = (itemId: string, text: string) => {
+    setMarketplaceItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return {
+          ...item,
+          comments: [
+            ...(item.comments || []),
+            {
+              id: `ic_${Date.now()}`,
+              authorName: currentUser.name,
+              authorAvatar: currentUser.avatar,
+              content: text,
+              createdAt: 'Just now'
+            }
+          ]
+        };
+      }
+      return item;
+    }));
+    showToast(language === 'bn' ? 'কমেন্ট করা হয়েছে' : 'Comment Added', 'Your comment is published.', 'success');
   };
 
   const deleteDiscussionPost = (postId: string) => {
@@ -474,7 +997,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setChannels(prev => [newChan, ...prev]);
 
-    // Initial welcome message in the new group
     setChannelMessages(prev => ({
       ...prev,
       [newChanId]: [
@@ -485,8 +1007,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           senderName: currentUser.name,
           senderAvatar: currentUser.avatar,
           content: language === 'bn'
-            ? `স্বাগতম সবাইকে! "${payload.name}" (${payload.courseCode}) গ্রুপটি সফলভাবে তৈরি করা হয়েছে। এখানে সবাই নোটস শেয়ার, প্রশ্ন ও পড়ালেখার বিষয় আলোচনা করতে পারবেন। 🎉`
-            : `Welcome everyone to "${payload.name}" (${payload.courseCode})! Let's collaborate on notes, problem sets, and exams. 🎉`,
+            ? `স্বাগতম সবাইকে! "${payload.name}" (${payload.courseCode}) গ্রুপটি সফলভাবে তৈরি করা হয়েছে। 🎉`
+            : `Welcome everyone to "${payload.name}" (${payload.courseCode})! 🎉`,
           timestamp: 'Just now',
           encrypted: false,
           upvotes: 1
@@ -528,13 +1050,63 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
+  const removeMemberFromGroup = (channelId: string, userId: string) => {
+    setChannels(prev => prev.map(c => {
+      if (c.id === channelId) {
+        return {
+          ...c,
+          memberCount: Math.max(1, c.memberCount - 1),
+          members: (c.members || []).filter(m => m !== userId)
+        };
+      }
+      return c;
+    }));
+    showToast(language === 'bn' ? 'সদস্য সরানো হয়েছে' : 'Member Removed', 'Member removed from group.', 'info');
+  };
+
   const deleteSharedFile = (fileId: string) => {
     const file = sharedFiles.find(f => f.id === fileId);
     setSharedFiles(prev => prev.filter(f => f.id !== fileId));
     if (file) {
       addAuditLog('Vault File Deleted', file.name, 'delete', `Deleted file in ${file.courseCode}`);
-      showToast(language === 'bn' ? 'ফাইল মুছে ফেলা হয়েছে' : 'File Removed', `${file.name} deleted from vault.`, 'info');
+      showToast(language === 'bn' ? 'ফাইল মুছে ফেলা হয়েছে' : 'File Removed', `${file.name} deleted.`, 'info');
     }
+  };
+
+  const toggleLikeSharedFile = (fileId: string) => {
+    setSharedFiles(prev => prev.map(f => {
+      if (f.id === fileId) {
+        const isLiked = f.likedByUser;
+        return {
+          ...f,
+          likes: isLiked ? (f.likes || 1) - 1 : (f.likes || 0) + 1,
+          likedByUser: !isLiked
+        };
+      }
+      return f;
+    }));
+  };
+
+  const addCommentToSharedFile = (fileId: string, text: string) => {
+    setSharedFiles(prev => prev.map(f => {
+      if (f.id === fileId) {
+        return {
+          ...f,
+          comments: [
+            ...(f.comments || []),
+            {
+              id: `fc_${Date.now()}`,
+              authorName: currentUser.name,
+              authorAvatar: currentUser.avatar,
+              content: text,
+              createdAt: 'Just now'
+            }
+          ]
+        };
+      }
+      return f;
+    }));
+    showToast(language === 'bn' ? 'মন্তব্য যুক্ত হয়েছে' : 'Comment Added', 'Comment posted on file.', 'success');
   };
 
   // User Actions & Password Recovery
@@ -542,7 +1114,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setIsAuthModalOpen(true);
     showToast(
       language === 'bn' ? 'লগআউট সম্পন্ন 🔒' : 'Logged Out 🔒',
-      language === 'bn' ? 'আপনি সফলভাবে অ্যাকাউন্ট থেকে লগআউট করেছেন।' : 'You have securely logged out from your account.',
+      language === 'bn' ? 'আপনি সফলভাবে অ্যাকাউন্ট থেকে লগআউট করেছেন।' : 'You have securely logged out.',
       'info'
     );
   };
@@ -550,7 +1122,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const resetPassword = (identifier: string, newPassword: string): { success: boolean; message: string } => {
     const cleanId = identifier.trim().replace('@', '').toLowerCase();
     
-    // Find matching user by email, username, phone, or name
     const userIndex = users.findIndex(u => 
       u.email.toLowerCase() === cleanId ||
       (u.username && u.username.toLowerCase() === cleanId) ||
@@ -595,10 +1166,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     bio?: string;
     avatar?: string;
     phone?: string;
+    schoolCover?: string;
     currentStudyFocus?: string;
     interests?: string[];
   }): { success: boolean; message: string } => {
-    // 1. Validate Username uniqueness if changed
     if (updates.username) {
       const cleanUsername = updates.username.replace('@', '').trim().toLowerCase();
       const existingUser = users.find(u => u.id !== currentUser.id && u.username && u.username.toLowerCase() === cleanUsername);
@@ -609,7 +1180,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
-    // 2. Validate Email uniqueness if changed
     if (updates.email) {
       const cleanEmail = updates.email.trim().toLowerCase();
       const existingEmail = users.find(u => u.id !== currentUser.id && u.email.toLowerCase() === cleanEmail);
@@ -620,19 +1190,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
-    // 3. Validate Current Password if updating password
-    if (updates.newPassword) {
-      if (currentUser.password && updates.currentPassword && currentUser.password !== updates.currentPassword) {
-        const errorMsg = language === 'bn' ? 'বর্তমান পাসওয়ার্ডটি সঠিক নয়!' : 'Current password does not match!';
-        showToast(language === 'bn' ? 'ভুল পাসওয়ার্ড' : 'Incorrect Password', errorMsg, 'info');
-        return { success: false, message: errorMsg };
-      }
-    }
-
-    // Apply updates
     setUsers(prev => prev.map(u => {
       if (u.id === currentUser.id) {
-        const updated: User = {
+        return {
           ...u,
           name: updates.name !== undefined ? updates.name.trim() : u.name,
           username: updates.username !== undefined ? updates.username.replace('@', '').trim() : u.username,
@@ -643,22 +1203,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           bio: updates.bio !== undefined ? updates.bio.trim() : u.bio,
           avatar: updates.avatar !== undefined ? updates.avatar : u.avatar,
           phone: updates.phone !== undefined ? updates.phone.trim() : u.phone,
+          schoolCover: updates.schoolCover !== undefined ? updates.schoolCover : u.schoolCover,
           currentStudyFocus: updates.currentStudyFocus !== undefined ? updates.currentStudyFocus.trim() : u.currentStudyFocus,
           interests: updates.interests !== undefined ? updates.interests : u.interests
         };
-        return updated;
       }
       return u;
     }));
 
-    const successMsg = language === 'bn' ? 'অ্যাকাউন্টের তথ্য (ইউজারনেম/ইমেইল/পাসওয়ার্ড) সফলভাবে আপডেট হয়েছে! 🎉' : 'Account credentials (username, email, password) updated successfully! 🎉';
+    const successMsg = language === 'bn' ? 'অ্যাকাউন্টের তথ্য সফলভাবে আপডেট হয়েছে! 🎉' : 'Account credentials updated successfully! 🎉';
     showToast(language === 'bn' ? 'আপডেট সফল' : 'Security Updated', successMsg, 'success');
     return { success: true, message: successMsg };
   };
 
   const updateUserProfile = (profile: Partial<User>) => {
     setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ...profile } : u));
-    showToast('Profile Updated', 'Your academic profile and credentials have been updated.', 'success');
+    showToast('Profile Updated', 'Your profile and credentials have been updated.', 'success');
   };
 
   const updateUserStatus = (status: AcademicStatus, focus?: string) => {
@@ -681,7 +1241,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loginWithCredentials = (method: 'google' | 'phone' | 'username' | 'password', identifier: string, password?: string): { success: boolean; message: string } => {
     const cleanId = identifier.trim().replace('@', '').toLowerCase();
     
-    // Find matching user by email, username, phone or id
     const matched = users.find(u => 
       u.email.toLowerCase() === cleanId || 
       (u.username && u.username.toLowerCase() === cleanId) || 
@@ -690,7 +1249,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
 
     if (matched) {
-      // Check password if provided and user has password set
       if (password && matched.password && matched.password !== password) {
         const errorMsg = language === 'bn' ? 'পাসওয়ার্ড সঠিক নয়। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Incorrect password. Please verify and try again.';
         showToast(language === 'bn' ? 'লগইন ব্যর্থ' : 'Login Failed', errorMsg, 'info');
@@ -699,6 +1257,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setCurrentUserId(matched.id);
       setIsAuthModalOpen(false);
+      setActiveTab('feed');
       showToast(
         language === 'bn' ? 'স্বাগতম!' : 'Signed In Successfully', 
         `${language === 'bn' ? 'স্বাগতম' : 'Welcome back to ClassMate,'} ${matched.name}!`, 
@@ -707,7 +1266,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: true, message: 'Signed in successfully' };
     }
 
-    // If not found in signin mode, create instant student account
+    // Auto-create student
     const newUser: User = {
       id: `usr_${Date.now()}`,
       name: identifier.includes('@') ? identifier.split('@')[0].replace('.', ' ') : identifier,
@@ -721,7 +1280,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       semester: 'SSC 2027 Batch (Class 10)',
       university: 'Quantum Cosmo School, Lama, Bandarban',
       cgpa: 'GPA 5.00',
-      bio: 'Enthusiastic Quantum Cosmo School SSC 2027 student eager to trade notes, form project teams, and learn.',
+      bio: 'Enthusiastic Quantum Cosmo School SSC 2027 student eager to learn and share notes.',
       status: 'online',
       currentStudyFocus: 'SSC 2027 Exam Prep & Study Squads',
       interests: ['Physics', 'Higher Math', 'SSC Prep', 'ICT'],
@@ -733,6 +1292,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUsers(prev => [newUser, ...prev]);
     setCurrentUserId(newUser.id);
     setIsAuthModalOpen(false);
+    setActiveTab('feed');
     showToast(
       language === 'bn' ? 'নতুন আইডি তৈরি হয়েছে' : 'Signed In',
       `Welcome to ClassMate, ${newUser.name}!`,
@@ -753,6 +1313,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     semester?: string;
     university?: string;
     avatar?: string;
+    schoolCover?: string;
     bio?: string;
     currentStudyFocus?: string;
     interests?: string[];
@@ -763,7 +1324,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const cleanEmail = payload.email?.trim() || (payload.method === 'google' ? payload.identifier : `${cleanUsername}@gmail.com`);
 
-    // Check if account with email/username already exists
     const matched = users.find(u => 
       (cleanEmail && u.email.toLowerCase() === cleanEmail.toLowerCase()) ||
       (cleanUsername && u.username && u.username.toLowerCase() === cleanUsername)
@@ -772,6 +1332,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (matched) {
       setCurrentUserId(matched.id);
       setIsAuthModalOpen(false);
+      setActiveTab('feed');
       showToast(
         language === 'bn' ? 'আইডি পাওয়া গেছে' : 'Account Found', 
         `Logged in as existing student ${matched.name}.`, 
@@ -789,13 +1350,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       password: payload.password || 'password123',
       gender: 'male',
       avatar: defaultAvatar,
+      schoolCover: payload.schoolCover,
       email: cleanEmail,
       phone: payload.phone?.trim() || (payload.method === 'phone' ? payload.identifier : '+880 1700 998877'),
       department: payload.department?.trim() || 'Science (বিজ্ঞান বিভাগ)',
       semester: payload.semester?.trim() || 'SSC 2027 Batch (Class 10)',
       university: payload.university?.trim() || 'Quantum Cosmo School, Lama, Bandarban',
       cgpa: 'GPA 5.00',
-      bio: payload.bio?.trim() || `Quantum Cosmo School SSC 2027 student member (${payload.department || 'Science'}). Ready to collaborate on exams, CQ/MCQ problem solving, and notes sharing.`,
+      bio: payload.bio?.trim() || `Quantum Cosmo School SSC 2027 candidate (${payload.department || 'Science'}). Ready to collaborate on exams and notes sharing.`,
       status: 'online',
       currentStudyFocus: payload.currentStudyFocus?.trim() || 'SSC 2027 Exam Prep & Study Squads',
       interests: payload.interests && payload.interests.length > 0 
@@ -810,6 +1372,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUsers(prev => [newUser, ...prev]);
     setCurrentUserId(newUser.id);
     setIsAuthModalOpen(false);
+    setActiveTab('feed');
     showToast(
       language === 'bn' ? 'স্টুডেন্ট অ্যাকাউন্ট তৈরি হয়েছে! 🎉' : 'Student Account Created! 🎉', 
       `Welcome to ClassMate, ${newUser.name}! Your campus profile is active.`, 
@@ -831,7 +1394,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       status: 'available',
       createdAt: 'Just now',
       likes: 1,
-      views: 1
+      views: 1,
+      comments: []
     };
     setMarketplaceItems(prev => [newItem, ...prev]);
     showToast('Listing Published', `"${newItem.title}" is now live on the campus marketplace.`, 'success');
@@ -847,8 +1411,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Chat Actions
-  const sendDirectMessage = async (receiverId: string, content: string, attachment?: DirectMessage['attachment']) => {
-    const hash = await computeSha256Digest(content);
+  const sendDirectMessage = async (
+    receiverId: string, 
+    content: string, 
+    attachment?: DirectMessage['attachment'],
+    voiceAudioUrl?: string,
+    voiceDurationSec?: number
+  ) => {
+    const hash = await computeSha256Digest(content || 'voice_message');
     const newMsg: DirectMessage = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,
@@ -858,11 +1428,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       encrypted: true,
       hash,
       attachment,
+      voiceAudioUrl,
+      voiceDurationSec,
       read: true
     };
     setDirectMessages(prev => [...prev, newMsg]);
 
-    // Simulated peer reply after 3s if chatting with a peer
     if (receiverId !== currentUser.id) {
       const peer = users.find(u => u.id === receiverId);
       setTimeout(() => {
@@ -870,18 +1441,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           id: `msg_reply_${Date.now()}`,
           senderId: receiverId,
           receiverId: currentUser.id,
-          content: `Got your message regarding the academic notes! Let's collaborate. (Verified SHA-256)`,
+          content: voiceAudioUrl ? `ভয়েস মেসেজ পেয়েছি! খুব সুন্দর শোনাচ্ছে।` : `Got your message! Let's collaborate.`,
           timestamp: 'Just now',
           encrypted: true,
           read: false
         };
         setDirectMessages(prev => [...prev, replyMsg]);
         showToast(`New message from ${peer?.name || 'Classmate'}`, 'Encrypted peer reply received', 'info');
-      }, 3500);
+      }, 3000);
     }
   };
 
-  const sendChannelMessage = (channelId: string, content: string, attachment?: ChannelMessage['attachment']) => {
+  const sendChannelMessage = (
+    channelId: string, 
+    content: string, 
+    attachment?: ChannelMessage['attachment'],
+    voiceAudioUrl?: string,
+    voiceDurationSec?: number
+  ) => {
     const newMsg: ChannelMessage = {
       id: `cmsg_${Date.now()}`,
       channelId,
@@ -892,6 +1469,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       timestamp: 'Just now',
       encrypted: false,
       attachment,
+      voiceAudioUrl,
+      voiceDurationSec,
       upvotes: 0
     };
 
@@ -902,7 +1481,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setChannels(prev => prev.map(c => c.id === channelId ? {
       ...c,
-      lastMessage: content,
+      lastMessage: voiceAudioUrl ? '🎤 Voice Message' : content,
       lastTimestamp: 'Just now'
     } : c));
   };
@@ -946,6 +1525,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (p.id === postId) {
         const newComment = {
           id: `comm_${Date.now()}`,
+          authorId: currentUser.id,
           authorName: currentUser.name,
           authorAvatar: currentUser.avatar,
           content: commentText,
@@ -973,7 +1553,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       uploaderName: currentUser.name,
       uploaderAvatar: currentUser.avatar,
       hash,
-      downloadCount: 0
+      downloadCount: 0,
+      likes: 0,
+      likedByUser: false,
+      comments: []
     };
     setSharedFiles(prev => [newFile, ...prev]);
     showToast('File Encrypted & Uploaded', `${file.name} saved to zero-knowledge vault.`, 'success');
@@ -1080,18 +1663,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteUser,
         banUser,
         toggleUserVerification,
+        blockUser,
+        unblockUser,
+        issueUserWarning,
+        dismissUserWarning,
+        adminResetUserPassword,
+        adminLoginAsUser,
         deleteMarketplaceItem,
+        addCommentToItem,
         deleteDiscussionPost,
         deleteChannel,
         createGroupChannel,
         inviteToGroupChannel,
+        removeMemberFromGroup,
         deleteSharedFile,
+        toggleLikeSharedFile,
+        addCommentToSharedFile,
         systemSettings,
         updateSystemSettings,
         auditLogs,
         clearAuditLogs,
         isDarkMode,
         toggleDarkMode,
+        themeMode,
+        setThemeMode,
         language,
         setLanguage,
         toggleLanguage,
@@ -1099,6 +1694,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         campusPhoto,
         setCampusPhoto,
         resetCampusPhoto,
+        appLogo,
+        updateAppLogo,
+        updateSchoolCover,
+        personalDriveItems,
+        addPersonalDriveItem,
+        deletePersonalDriveItem,
+        toggleLikeDriveItem,
+        addCommentToDriveItem,
+        reels,
+        addReel,
+        toggleLikeReel,
+        addCommentToReel,
+        deleteReel,
+        educationalNews,
+        addEducationalNews,
+        toggleLikeEduNews,
+        addCommentToEduNews,
+        deleteEduNews,
+        helpTickets,
+        isHelpModalOpen,
+        setIsHelpModalOpen,
+        submitHelpTicket,
+        resolveHelpTicket,
+        deleteHelpTicket,
+        gamesList,
+        addGameTruthOrDare,
+        deleteGameTruthOrDare,
+        isGoogleSearchOpen,
+        setIsGoogleSearchOpen,
         updateUserProfile,
         updateUserStatus,
         switchUserPersona,

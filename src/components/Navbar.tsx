@@ -4,13 +4,13 @@ import {
   GraduationCap, 
   Moon, 
   Sun, 
-  Video, 
-  Phone,
   ShieldCheck, 
   ChevronDown,
   Trees,
   Languages,
-  Sparkles
+  Sparkles,
+  HelpCircle,
+  Search
 } from 'lucide-react';
 import { CampusPhotoModal } from './CampusPhotoModal';
 
@@ -23,12 +23,14 @@ export const Navbar: React.FC = () => {
     toggleLanguage,
     t,
     setIsAuthModalOpen, 
-    startCall, 
     users, 
     switchUserPersona, 
     setActiveTab, 
     activeCall,
-    setIsCallModalOpen
+    setIsCallModalOpen,
+    appLogo,
+    setIsHelpModalOpen,
+    setIsGoogleSearchOpen
   } = useApp();
 
   const [isCampusPhotoOpen, setIsCampusPhotoOpen] = useState(false);
@@ -38,10 +40,14 @@ export const Navbar: React.FC = () => {
       <header className="sticky top-0 z-30 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors shadow-2xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
           
-          {/* Brand & Logo */}
-          <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer select-none" onClick={() => setActiveTab('marketplace')}>
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25">
-              <GraduationCap className="w-6 h-6" />
+          {/* Brand & Logo (Admin can customize appLogo) */}
+          <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer select-none" onClick={() => setActiveTab('welcome')}>
+            <div className="w-10 h-10 rounded-2xl overflow-hidden bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/25 shrink-0">
+              {appLogo ? (
+                <img src={appLogo} alt="Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <GraduationCap className="w-6 h-6" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -49,18 +55,38 @@ export const Navbar: React.FC = () => {
                   {t.appName}
                 </span>
                 <span className="text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80">
-                  {t.campusHub}
+                  SSC 2027
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:block">
-                {currentUser.university}
+                Quantum Cosmo School
               </p>
             </div>
           </div>
 
           {/* Global Action Bar */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             
+            {/* Google Study Search trigger */}
+            <button
+              onClick={() => setIsGoogleSearchOpen(true)}
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 sm:py-2 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              title={language === 'bn' ? 'গুগল স্টাডি সার্চ' : 'Google Study Search'}
+            >
+              <Search className="w-3.5 h-3.5 text-blue-500" />
+              <span>{language === 'bn' ? 'গুগল সার্চ' : 'Search'}</span>
+            </button>
+
+            {/* Help / Password Recovery Modal trigger */}
+            <button
+              onClick={() => setIsHelpModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 sm:py-2 rounded-xl border border-cyan-200 dark:border-cyan-900 bg-cyan-50 dark:bg-cyan-950/50 hover:bg-cyan-100 text-cyan-700 dark:text-cyan-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              title={language === 'bn' ? 'হেল্প ডেস্ক ও পাসওয়ার্ড সহায়তা' : 'Help & Support Desk'}
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-cyan-500" />
+              <span className="hidden sm:inline">{language === 'bn' ? 'সহায়তা' : 'Help'}</span>
+            </button>
+
             {/* Campus Aerial Photo Button */}
             <button
               onClick={() => setIsCampusPhotoOpen(true)}
@@ -75,33 +101,11 @@ export const Navbar: React.FC = () => {
             {activeCall && (
               <button
                 onClick={() => setIsCallModalOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold animate-pulse hover:bg-rose-500/20 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold animate-pulse hover:bg-rose-500/20 transition-all cursor-pointer"
               >
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                 <span className="hidden sm:inline">{t.liveCallActive}</span>
               </button>
-            )}
-
-            {/* Quick Instant Study Room Button */}
-            {!activeCall && (
-              <div className="hidden lg:flex items-center gap-1.5">
-                <button
-                  onClick={() => startCall('CSE & Engineering Voice Hub', 'audio', true, 'CSE 311', ['usr_1', 'usr_2', 'usr_6'])}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold transition-all shadow-2xs cursor-pointer"
-                  title={language === 'bn' ? 'অডিও স্টাডি কল চালু করুন' : 'Start Audio Study Call'}
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>{language === 'bn' ? 'অডিও রুম' : 'Audio Room'}</span>
-                </button>
-                <button
-                  onClick={() => startCall('CSE & Engineering Open Study Squad', 'video', true, 'CSE 311', ['usr_1', 'usr_2', 'usr_6'])}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold transition-all shadow-2xs cursor-pointer"
-                  title={language === 'bn' ? 'ভিডিও স্টাডি রুম চালু করুন' : 'Start Video Study Room'}
-                >
-                  <Video className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                  <span>{t.instantStudyRoom}</span>
-                </button>
-              </div>
             )}
 
             {/* Language Switcher: Bangla বাংলা <-> English */}
@@ -122,15 +126,9 @@ export const Navbar: React.FC = () => {
               aria-label="Toggle theme"
             >
               {isDarkMode ? (
-                <>
-                  <Sun className="w-4 h-4 text-amber-400" />
-                  <span className="hidden xl:inline text-xs font-bold text-amber-400">{t.lightMode}</span>
-                </>
+                <Sun className="w-4 h-4 text-amber-400" />
               ) : (
-                <>
-                  <Moon className="w-4 h-4 text-indigo-600" />
-                  <span className="hidden xl:inline text-xs font-bold text-indigo-600">{t.darkMode}</span>
-                </>
+                <Moon className="w-4 h-4 text-indigo-600" />
               )}
             </button>
 
@@ -145,6 +143,7 @@ export const Navbar: React.FC = () => {
                     src={currentUser.avatar}
                     alt={currentUser.name}
                     className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/30"
+                    referrerPolicy="no-referrer"
                   />
                   <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${
                     currentUser.status === 'online' ? 'bg-emerald-500' :
@@ -182,7 +181,7 @@ export const Navbar: React.FC = () => {
                           : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
-                      <img src={u.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      <img src={u.avatar} alt="" className="w-6 h-6 rounded-full object-cover" referrerPolicy="no-referrer" />
                       <div className="truncate flex-1">
                         <span className="block truncate">{u.name}</span>
                         <span className="text-[10px] text-slate-400">{u.department.split(' ')[0]}</span>

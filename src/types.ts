@@ -1,8 +1,32 @@
 export type AcademicStatus = 'online' | 'studying' | 'in_call' | 'busy' | 'offline';
 export type UserRole = 'super_admin' | 'admin' | 'moderator' | 'student';
+export type ThemeMode = 'dark' | 'light' | 'green' | 'blue' | 'purple' | 'amber';
 
-export type TabType = 'marketplace' | 'messages' | 'feed' | 'files' | 'classmates' | 'profile' | 'admin';
+export type TabType = 
+  | 'welcome' 
+  | 'marketplace' 
+  | 'messages' 
+  | 'feed' 
+  | 'reels' 
+  | 'drive' 
+  | 'files' 
+  | 'classmates' 
+  | 'games' 
+  | 'edunews' 
+  | 'edu_news'
+  | 'profile' 
+  | 'admin';
+
 export type ActiveTab = TabType;
+
+export interface UserWarning {
+  id: string;
+  userId: string;
+  issuedBy: string;
+  reason: string;
+  timestamp: string;
+  read: boolean;
+}
 
 export interface User {
   id: string;
@@ -10,6 +34,7 @@ export interface User {
   username?: string;
   password?: string;
   avatar: string;
+  schoolCover?: string;
   gender: 'male' | 'female' | 'other';
   email: string;
   phone: string;
@@ -28,6 +53,111 @@ export interface User {
   role?: UserRole;
   isImmortalSuperAdmin?: boolean;
   isBanned?: boolean;
+  blockedUserIds?: string[];
+  warnings?: UserWarning[];
+}
+
+export interface HelpTicket {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  userEmail: string;
+  subject: string;
+  message: string;
+  voiceAudioUrl?: string;
+  category: 'password_reset' | 'bug' | 'harassment' | 'academic' | 'other' | 'account_access' | 'drive_issue' | 'general_help';
+  status: 'open' | 'in_progress' | 'resolved';
+  createdAt: string;
+  adminReply?: string;
+}
+
+export interface PersonalDriveItem {
+  id: string;
+  userId: string;
+  name: string;
+  type: 'image' | 'video' | 'file' | 'audio';
+  category: 'Personal' | 'Class Notes' | 'Memories' | 'Assignments' | 'Exam Prep' | 'photo' | 'video' | 'document' | 'other';
+  url: string;
+  fileUrl?: string;
+  thumbnailUrl?: string;
+  fileType?: string;
+  fileSize?: string;
+  size: string;
+  uploadedAt: string;
+  description?: string;
+  isPrivate?: boolean;
+  likes: number;
+  likedByUser?: boolean;
+  comments: {
+    id: string;
+    authorName: string;
+    authorAvatar: string;
+    content: string;
+    createdAt: string;
+  }[];
+}
+
+export interface ReelComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ReelItem {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  authorBadge?: string;
+  videoUrl: string;
+  thumbnailUrl?: string;
+  caption: string;
+  musicTitle?: string;
+  songTitle?: string;
+  tags: string[];
+  likes: number;
+  isLiked?: boolean;
+  commentsCount: number;
+  comments: ReelComment[];
+  createdAt: string;
+}
+
+export interface EducationalNewsItem {
+  id: string;
+  title: string;
+  summary: string;
+  content?: string;
+  author?: string;
+  source: string;
+  category: 'SSC 2027' | 'Science & Tech' | 'Math & Olympiad' | 'General Knowledge' | 'English & ICT' | 'ssc_prep' | 'science' | 'higher_math' | 'ict' | 'general';
+  imageUrl?: string;
+  coverImage?: string;
+  videoUrl?: string;
+  readTime?: string;
+  publishedAt: string;
+  tags?: string[];
+  likes: number;
+  isLiked?: boolean;
+  comments: {
+    id: string;
+    authorName: string;
+    authorAvatar: string;
+    content: string;
+    createdAt: string;
+  }[];
+  externalLink?: string;
+}
+
+export interface GameTruthOrDare {
+  id: string;
+  type: 'truth' | 'dare';
+  question: string;
+  prompt?: string;
+  category: 'School Life' | 'Fun & Friendship' | 'SSC Studies' | 'Crazy Dares' | 'school_life' | 'fun' | 'ssc_study' | 'dares' | string;
 }
 
 export interface AdminAuditLog {
@@ -37,15 +167,18 @@ export interface AdminAuditLog {
   performedBy: string;
   timestamp: string;
   details?: string;
-  type: 'role' | 'delete' | 'ban' | 'system' | 'broadcast';
+  type: 'role' | 'delete' | 'ban' | 'system' | 'broadcast' | 'warning' | 'password_reset';
 }
 
 export interface SystemSettings {
   schoolName: string;
+  appLogo: string;
+  defaultCampusPhoto: string;
   announcement: string | null;
   allowStudentRegistrations: boolean;
   maintenanceMode: boolean;
   requireListingApproval: boolean;
+  themeMode?: ThemeMode;
 }
 
 export type ListingCategory = 
@@ -53,7 +186,7 @@ export type ListingCategory =
   | 'Handwritten Notes' 
   | 'Calculators & Tech' 
   | 'Lab Equipment' 
-  | 'Past Exams & Solutions'
+  | 'Past Exams & Solutions' 
   | 'Coursework Projects';
 
 export type ListingCondition = 'Like New' | 'Good' | 'Fair' | 'Digital PDF / Code';
@@ -82,6 +215,13 @@ export interface MarketplaceItem {
   views?: number;
   likes: number;
   isLikedByUser?: boolean;
+  comments?: {
+    id: string;
+    authorName: string;
+    authorAvatar: string;
+    content: string;
+    createdAt: string;
+  }[];
 }
 
 export interface DirectMessage {
@@ -96,10 +236,12 @@ export interface DirectMessage {
   read?: boolean;
   hash?: string;
   iv?: string;
+  voiceAudioUrl?: string;
+  voiceDurationSec?: number;
   attachment?: {
     name: string;
     url: string;
-    type: 'pdf' | 'image' | 'video' | 'code' | 'zip';
+    type: 'pdf' | 'image' | 'video' | 'code' | 'zip' | 'audio';
     size: string;
     encryptedKeySnippet?: string;
   };
@@ -115,10 +257,12 @@ export interface ChannelMessage {
   timestamp: string;
   encrypted: boolean;
   upvotes?: number;
+  voiceAudioUrl?: string;
+  voiceDurationSec?: number;
   attachment?: {
     name: string;
     url: string;
-    type: 'pdf' | 'image' | 'video' | 'code' | 'zip';
+    type: 'pdf' | 'image' | 'video' | 'code' | 'zip' | 'audio';
     size: string;
     encryptedKeySnippet?: string;
   };
@@ -162,6 +306,7 @@ export interface DiscussionPost {
   commentsCount: number;
   comments: {
     id: string;
+    authorId?: string;
     authorName: string;
     authorAvatar: string;
     content: string;
@@ -181,7 +326,7 @@ export interface SharedFile {
   name: string;
   description: string;
   size: string;
-  fileType: 'pdf' | 'doc' | 'code' | 'slide' | 'zip';
+  fileType: 'pdf' | 'doc' | 'code' | 'slide' | 'zip' | 'video' | 'image';
   courseCode: string;
   department: string;
   uploaderId: string;
@@ -192,6 +337,15 @@ export interface SharedFile {
   encrypted: boolean;
   hash: string;
   contentPreview?: string;
+  likes?: number;
+  likedByUser?: boolean;
+  comments?: {
+    id: string;
+    authorName: string;
+    authorAvatar: string;
+    content: string;
+    createdAt: string;
+  }[];
 }
 
 export interface StudyCallParticipant {
@@ -214,3 +368,4 @@ export interface ActiveStudyCall {
   participants: StudyCallParticipant[];
   sharedNotes?: string;
 }
+

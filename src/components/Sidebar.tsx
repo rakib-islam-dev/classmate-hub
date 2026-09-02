@@ -14,22 +14,42 @@ import {
   Trees,
   Maximize2,
   Upload,
-  Crown
+  Crown,
+  Sparkles,
+  Film,
+  HardDrive,
+  Newspaper,
+  Gamepad2
 } from 'lucide-react';
 import { CampusPhotoModal } from './CampusPhotoModal';
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, users, startCall, campusPhoto, t, language, isSuperAdmin } = useApp();
+  const { 
+    activeTab, 
+    setActiveTab, 
+    users, 
+    startCall, 
+    campusPhoto, 
+    t, 
+    language, 
+    isSuperAdmin
+  } = useApp();
+
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   const onlineClassmatesCount = users.filter(u => u.status === 'online' || u.status === 'studying').length;
 
   const navItems: { id: TabType; label: string; icon: React.FC<{ className?: string }>; badge?: string | number }[] = [
-    { id: 'marketplace', label: t.marketplace, icon: ShoppingBag },
-    { id: 'messages', label: t.messages, icon: MessageSquare },
+    { id: 'welcome', label: language === 'bn' ? 'স্বাগতম পোর্টাল' : 'Welcome Portal', icon: Sparkles },
+    { id: 'drive', label: language === 'bn' ? 'পার্সোনাল ড্রাইভ' : 'Personal Drive', icon: HardDrive },
+    { id: 'reels', label: language === 'bn' ? 'ক্যাম্পাস রিলস' : 'Campus Reels', icon: Film, badge: 'Hot' },
+    { id: 'edu_news', label: language === 'bn' ? 'শিক্ষামূলক সংবাদ' : 'SSC 2027 News', icon: Newspaper },
+    { id: 'games', label: language === 'bn' ? 'ট্রুথ অর ডেয়ার' : 'Truth / Dare Games', icon: Gamepad2 },
     { id: 'feed', label: t.feed, icon: Compass },
+    { id: 'messages', label: t.messages, icon: MessageSquare },
+    { id: 'classmates', label: t.classmates, icon: Users, badge: `${onlineClassmatesCount}` },
     { id: 'files', label: t.vault, icon: FolderLock },
-    { id: 'classmates', label: t.classmates, icon: Users, badge: `${onlineClassmatesCount} ${language === 'bn' ? 'অনলাইন' : 'active'}` },
+    { id: 'marketplace', label: t.marketplace, icon: ShoppingBag },
     { id: 'admin', label: t.admin || 'অ্যাডমিন প্যানেল', icon: Crown, badge: isSuperAdmin ? '👑 Super' : 'Admin' },
     { id: 'profile', label: t.profile, icon: User },
   ];

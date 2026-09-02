@@ -1,6 +1,6 @@
 {
-  "name": "Remix ClassMate Hub",
-  "description": "A secure student marketplace for trading books, sharing files, and collaborating through chat and video calls across all devices.",
+  "name": "Quantum Cosmo School SSC 2027 Hub",
+  "description": "Exclusive academic collaboration platform, personal cloud drive, campus reels, notes marketplace, encrypted study vault, and truth/dare games for Quantum Cosmo School SSC 2027 Batch.",
   "requestFramePermissions": [
     "camera",
     "microphone"

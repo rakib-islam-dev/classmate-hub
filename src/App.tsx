@@ -2,6 +2,11 @@ import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
+import { WelcomeView } from './components/WelcomeView';
+import { PersonalDriveView } from './components/PersonalDriveView';
+import { ReelsView } from './components/ReelsView';
+import { EducationalNewsView } from './components/EducationalNewsView';
+import { StudyGamesView } from './components/StudyGamesView';
 import { MarketplaceView } from './components/MarketplaceView';
 import { ChatView } from './components/ChatView';
 import { FeedView } from './components/FeedView';
@@ -11,6 +16,8 @@ import { ProfileView } from './components/ProfileView';
 import { AdminPanelView } from './components/AdminPanelView';
 import { CallModal } from './components/CallModal';
 import { AuthModal } from './components/AuthModal';
+import { HelpTicketModal } from './components/HelpTicketModal';
+import { GoogleSearchModal } from './components/GoogleSearchModal';
 import { Toast } from './components/Toast';
 import { Megaphone, AlertTriangle } from 'lucide-react';
 
@@ -41,11 +48,16 @@ const MainLayout: React.FC = () => {
         <Sidebar />
 
         <main className="flex-1 p-3 sm:p-6 overflow-y-auto pb-20 md:pb-6">
-          {activeTab === 'marketplace' && <MarketplaceView />}
-          {activeTab === 'messages' && <ChatView />}
+          {activeTab === 'welcome' && <WelcomeView />}
+          {activeTab === 'drive' && <PersonalDriveView />}
+          {activeTab === 'reels' && <ReelsView />}
+          {activeTab === 'edu_news' && <EducationalNewsView />}
+          {activeTab === 'games' && <StudyGamesView />}
           {activeTab === 'feed' && <FeedView />}
-          {activeTab === 'files' && <CloudVaultView />}
+          {activeTab === 'messages' && <ChatView />}
           {activeTab === 'classmates' && <ClassmatesView />}
+          {activeTab === 'files' && <CloudVaultView />}
+          {activeTab === 'marketplace' && <MarketplaceView />}
           {activeTab === 'profile' && <ProfileView />}
           {activeTab === 'admin' && <AdminPanelView />}
         </main>
@@ -53,6 +65,8 @@ const MainLayout: React.FC = () => {
 
       <CallModal />
       <AuthModal />
+      <HelpTicketModal />
+      <GoogleSearchModal />
       <Toast />
     </div>
   );
@@ -67,3 +81,4 @@ export function App() {
 }
 
 export default App;
+
