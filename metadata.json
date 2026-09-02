@@ -1,0 +1,11 @@
+{
+  "name": "Remix ClassMate Hub",
+  "description": "A secure student marketplace for trading books, sharing files, and collaborating through chat and video calls across all devices.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
