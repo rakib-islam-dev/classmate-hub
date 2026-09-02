@@ -22,7 +22,7 @@ import { Toast } from './components/Toast';
 import { Megaphone, AlertTriangle } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { activeTab, systemSettings, language } = useApp();
+  const { activeTab, isLoggedIn, systemSettings, language } = useApp();
 
   return (
     <div className="h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors overflow-hidden">
@@ -45,21 +45,29 @@ const MainLayout: React.FC = () => {
       )}
 
       <div className="flex-1 flex max-w-7xl w-full mx-auto overflow-hidden">
-        <Sidebar />
+        {/* Academic Modules Sidebar only visible to logged-in students */}
+        {isLoggedIn && <Sidebar />}
 
-        <main className="flex-1 p-3 sm:p-6 overflow-y-auto pb-20 md:pb-6">
-          {activeTab === 'welcome' && <WelcomeView />}
-          {activeTab === 'drive' && <PersonalDriveView />}
-          {activeTab === 'reels' && <ReelsView />}
-          {activeTab === 'edu_news' && <EducationalNewsView />}
-          {activeTab === 'games' && <StudyGamesView />}
-          {activeTab === 'feed' && <FeedView />}
-          {activeTab === 'messages' && <ChatView />}
-          {activeTab === 'classmates' && <ClassmatesView />}
-          {activeTab === 'files' && <CloudVaultView />}
-          {activeTab === 'marketplace' && <MarketplaceView />}
-          {activeTab === 'profile' && <ProfileView />}
-          {activeTab === 'admin' && <AdminPanelView />}
+        <main className={`flex-1 p-3 sm:p-6 overflow-y-auto ${isLoggedIn ? 'pb-20 md:pb-6' : 'pb-8'}`}>
+          {/* Guest or Welcome view */}
+          {(!isLoggedIn || activeTab === 'welcome') && <WelcomeView />}
+
+          {/* Protected Internal Academic Views */}
+          {isLoggedIn && (
+            <>
+              {activeTab === 'drive' && <PersonalDriveView />}
+              {activeTab === 'reels' && <ReelsView />}
+              {activeTab === 'edu_news' && <EducationalNewsView />}
+              {activeTab === 'games' && <StudyGamesView />}
+              {activeTab === 'feed' && <FeedView />}
+              {activeTab === 'messages' && <ChatView />}
+              {activeTab === 'classmates' && <ClassmatesView />}
+              {activeTab === 'files' && <CloudVaultView />}
+              {activeTab === 'marketplace' && <MarketplaceView />}
+              {activeTab === 'profile' && <ProfileView />}
+              {activeTab === 'admin' && <AdminPanelView />}
+            </>
+          )}
         </main>
       </div>
 

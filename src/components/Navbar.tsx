@@ -10,13 +10,18 @@ import {
   Languages,
   Sparkles,
   HelpCircle,
-  Search
+  Search,
+  LogIn,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 import { CampusPhotoModal } from './CampusPhotoModal';
 
 export const Navbar: React.FC = () => {
   const { 
     currentUser, 
+    isLoggedIn,
+    logout,
     isDarkMode, 
     toggleDarkMode, 
     language,
@@ -132,75 +137,98 @@ export const Navbar: React.FC = () => {
               )}
             </button>
 
-            {/* Switch Persona Dropdown / Current User Profile */}
-            <div className="relative group">
-              <button 
-                onClick={() => setActiveTab('profile')}
-                className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 bg-slate-50 dark:bg-slate-850 transition-all text-left cursor-pointer"
+            {/* User Profile or Guest Login/Register Button */}
+            {!isLoggedIn ? (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs shadow-md shadow-indigo-500/25 transition-all cursor-pointer"
               >
-                <div className="relative">
-                  <img
-                    src={currentUser.avatar}
-                    alt={currentUser.name}
-                    className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/30"
-                    referrerPolicy="no-referrer"
-                  />
-                  <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${
-                    currentUser.status === 'online' ? 'bg-emerald-500' :
-                    currentUser.status === 'studying' ? 'bg-amber-500' :
-                    currentUser.status === 'in_call' ? 'bg-indigo-500' : 'bg-slate-400'
-                  }`} />
-                </div>
-                <div className="hidden md:block">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{currentUser.name}</span>
-                    {currentUser.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                  </div>
-                  <span className="text-[10px] text-slate-400 block line-clamp-1">{currentUser.department.split(' ')[0]}</span>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+                <LogIn className="w-4 h-4" />
+                <span>{language === 'bn' ? 'লগইন / রেজিস্টার' : 'Login / Register'}</span>
               </button>
+            ) : (
+              <div className="relative group">
+                <button 
+                  onClick={() => setActiveTab('profile')}
+                  className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 bg-slate-50 dark:bg-slate-850 transition-all text-left cursor-pointer"
+                >
+                  <div className="relative">
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name}
+                      className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/30"
+                      referrerPolicy="no-referrer"
+                    />
+                    <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${
+                      currentUser.status === 'online' ? 'bg-emerald-500' :
+                      currentUser.status === 'studying' ? 'bg-amber-500' :
+                      currentUser.status === 'in_call' ? 'bg-indigo-500' : 'bg-slate-400'
+                    }`} />
+                  </div>
+                  <div className="hidden md:block">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{currentUser.name}</span>
+                      {currentUser.verified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block line-clamp-1">{currentUser.department.split(' ')[0]}</span>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
+                </button>
 
-              {/* Quick Persona Dropdown Menu on hover/focus */}
-              <div className="absolute right-0 top-full mt-1.5 w-64 p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all z-50">
-                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.academicProfile}</p>
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{currentUser.name}</p>
-                  <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>
-                </div>
+                {/* Quick Persona Dropdown Menu on hover/focus */}
+                <div className="absolute right-0 top-full mt-1.5 w-64 p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all z-50">
+                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t.academicProfile}</p>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-0.5">
+                        <UserCheck className="w-2.5 h-2.5" /> Logged In
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{currentUser.name}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>
+                  </div>
 
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 py-1">{t.quickSwitch}</p>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {users.map(u => (
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 py-1">{t.quickSwitch}</p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {users.map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => switchUserPersona(u.id)}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs text-left transition-colors cursor-pointer ${
+                          u.id === currentUser.id 
+                            ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 font-bold' 
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <img src={u.avatar} alt="" className="w-6 h-6 rounded-full object-cover" referrerPolicy="no-referrer" />
+                        <div className="truncate flex-1">
+                          <span className="block truncate">{u.name}</span>
+                          <span className="text-[10px] text-slate-400">{u.department.split(' ')[0]}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
                     <button
-                      key={u.id}
-                      onClick={() => switchUserPersona(u.id)}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs text-left transition-colors cursor-pointer ${
-                        u.id === currentUser.id 
-                          ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 font-bold' 
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
+                      onClick={() => setIsAuthModalOpen(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer"
                     >
-                      <img src={u.avatar} alt="" className="w-6 h-6 rounded-full object-cover" referrerPolicy="no-referrer" />
-                      <div className="truncate flex-1">
-                        <span className="block truncate">{u.name}</span>
-                        <span className="text-[10px] text-slate-400">{u.department.split(' ')[0]}</span>
-                      </div>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{language === 'bn' ? 'অন্য অ্যাকাউন্ট যুক্ত করুন' : t.createAccount}</span>
                     </button>
-                  ))}
-                </div>
 
-                <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1">
-                  <button
-                    onClick={() => setIsAuthModalOpen(true)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{t.createAccount}</span>
-                  </button>
+                    <button
+                      onClick={logout}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>{language === 'bn' ? 'লগআউট' : 'Sign Out'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
           </div>
 

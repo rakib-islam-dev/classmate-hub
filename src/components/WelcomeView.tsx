@@ -18,6 +18,8 @@ import {
 export const WelcomeView: React.FC = () => {
   const { 
     setActiveTab, 
+    isLoggedIn,
+    currentUser,
     setIsAuthModalOpen, 
     setIsHelpModalOpen, 
     setIsGoogleSearchOpen, 
@@ -96,38 +98,72 @@ export const WelcomeView: React.FC = () => {
 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={() => setActiveTab('feed')}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/40 flex items-center gap-2 transition-all cursor-pointer transform hover:-translate-y-0.5"
-            >
-              <span>{language === 'bn' ? 'ক্যাম্পাসে প্রবেশ করুন' : 'Enter Campus'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            {!isLoggedIn ? (
+              <>
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-sm shadow-xl shadow-indigo-600/40 flex items-center gap-2 transition-all cursor-pointer transform hover:-translate-y-0.5"
+                >
+                  <UserPlus className="w-4 h-4 text-amber-300" />
+                  <span>{language === 'bn' ? 'লগইন / নতুন অ্যাকাউন্ট খুলুন 🚀' : 'Login / Register 🚀'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
 
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4 text-emerald-400" />
-              <span>{language === 'bn' ? 'রেজিস্ট্রেশন / লগইন' : 'Register / Login'}</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('feed')}
+                  className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <span>{language === 'bn' ? 'ক্যাম্পাসে প্রবেশ করুন' : 'Enter Campus'}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setActiveTab('feed')}
+                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-lg shadow-indigo-600/40 flex items-center gap-2 transition-all cursor-pointer transform hover:-translate-y-0.5"
+                >
+                  <span>{language === 'bn' ? `ক্যাম্পাসে চলুন, ${currentUser.name.split(' ')[0]}!` : `Enter Campus (${currentUser.name.split(' ')[0]})`}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
 
-            <button
-              onClick={() => setActiveTab('drive')}
-              className="px-5 py-3 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-bold text-sm border border-emerald-500/30 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <FolderLock className="w-4 h-4 text-emerald-400" />
-              <span>{language === 'bn' ? 'পার্সোনাল ড্রাইভ' : 'Personal Drive'}</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('drive')}
+                  className="px-5 py-3 rounded-2xl bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 font-bold text-sm border border-emerald-500/40 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <FolderLock className="w-4 h-4 text-emerald-400" />
+                  <span>{language === 'bn' ? 'আমার পার্সোনাল ড্রাইভ' : 'My Personal Drive'}</span>
+                </button>
+              </>
+            )}
 
             <button
               onClick={() => setActiveTab('reels')}
               className="px-5 py-3 rounded-2xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-sm border border-rose-500/30 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
             >
               <Film className="w-4 h-4 text-rose-400" />
-              <span>{language === 'bn' ? 'রিলস দেখুন' : 'Watch Reels'}</span>
+              <span>{language === 'bn' ? 'ক্যাম্পাস রিলস' : 'Campus Reels'}</span>
             </button>
           </div>
+
+          {/* Guest Auth Notice if not logged in */}
+          {!isLoggedIn && (
+            <div className="p-3.5 rounded-2xl bg-indigo-950/80 border border-indigo-500/30 text-xs text-indigo-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>
+                  {language === 'bn' 
+                    ? '🔒 নিরাপত্তা নোটিশ: স্কুলের অভ্যন্তরীণ ড্রাইভ, রিলস, চ্যাট এবং অ্যাকাডেমিক ফিচারে প্রবেশের জন্য লগইন বা রেজিস্ট্রেশন বাধ্যতামূলক।' 
+                    : '🔒 Security Note: Login or Registration is strictly required to access internal campus drive, reels, squads & notes.'}
+                </span>
+              </div>
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors"
+              >
+                {language === 'bn' ? 'লগইন করুন' : 'Sign In'}
+              </button>
+            </div>
+          )}
 
           {/* Live Batch Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10">

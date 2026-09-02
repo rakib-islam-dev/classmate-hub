@@ -179,6 +179,11 @@ interface AppContextType {
   toggleScreenShare: () => void;
   updateSharedCallNotes: (notes: string) => void;
 
+  // Authentication & Guest State
+  isLoggedIn: boolean;
+  setIsLoggedIn: (logged: boolean) => void;
+  requireAuth: (actionDescription?: string, targetTab?: ActiveTab) => boolean;
+
   // Modals & Notifications & Credentials
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
@@ -224,7 +229,12 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('welcome');
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    const saved = localStorage.getItem('classmate_is_logged_in');
+    return saved === 'true';
+  });
+
+  const [activeTab, setActiveTabState] = useState<ActiveTab>('welcome');
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('classmate_users');
     if (saved) {
@@ -255,6 +265,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isGoogleSearchOpen, setIsGoogleSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<ToastInfo | null>(null);
+
+  const requireAuth = (actionDescription?: string, targetTab?: ActiveTab): boolean => {
+    if (!isLoggedIn) {
+      setIsAuthModalOpen(true);
+      showToast(
+        language === 'bn' ? 'লগইন প্রয়োজন 🔒' : 'Login Required 🔒',
+        actionDescription || (language === 'bn' ? 'এই সুবিধাটি ব্যবহার করতে অনুগ্রহ করে লগইন বা রেজিস্ট্রেশন করুন।' : 'Please sign in or register to use this feature.'),
+        'info'
+      );
+      return false;
+    }
+    if (targetTab) {
+      setActiveTabState(targetTab);
+    }
+    return true;
+  };
+
+  const setActiveTab = (tab: ActiveTab) => {
+    if (tab !== 'welcome' && !isLoggedIn) {
+      setIsAuthModalOpen(true);
+      showToast(
+        language === 'bn' ? 'লগইন প্রয়োজন 🔒' : 'Login Required 🔒',
+        language === 'bn' ? 'ক্যাম্পাসের অভ্যন্তরীণ মডিউলে প্রবেশ করতে অনুগ্রহ করে লগইন অথবা রেজিস্ট্রেশন করুন।' : 'Please login or register to access inside campus facilities.',
+        'info'
+      );
+      return;
+    }
+    setActiveTabState(tab);
+  };
 
   // System Settings State
   const [systemSettings, setSystemSettings] = useState<SystemSettings>(() => {
@@ -1111,7 +1150,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // User Actions & Password Recovery
   const logout = () => {
-    setIsAuthModalOpen(true);
+    setIsLoggedIn(false);
+    localStorage.setItem('classmate_is_logged_in', 'false');
+    setActiveTabState('welcome');
+    setIsAuthModalOpen(false);
     showToast(
       language === 'bn' ? 'লগআউট সম্পন্ন 🔒' : 'Logged Out 🔒',
       language === 'bn' ? 'আপনি সফলভাবে অ্যাকাউন্ট থেকে লগআউট করেছেন।' : 'You have securely logged out.',
@@ -1146,7 +1188,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setUsers(updatedUsers);
     setCurrentUserId(targetUser.id);
+    setIsLoggedIn(true);
+    localStorage.setItem('classmate_is_logged_in', 'true');
+    localStorage.setItem('classmate_current_user_id', targetUser.id);
     setIsAuthModalOpen(false);
+    setActiveTabState('feed');
 
     const successMsg = language === 'bn' 
       ? `পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে! স্বাগতম ${targetUser.name}!` 
@@ -1234,6 +1280,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const target = users.find(u => u.id === userId);
     if (target) {
       setCurrentUserId(userId);
+      setIsLoggedIn(true);
+      localStorage.setItem('classmate_is_logged_in', 'true');
+      localStorage.setItem('classmate_current_user_id', userId);
       showToast('Switched Persona', `Active profile: ${target.name} (${target.department.split(' ')[0]})`, 'success');
     }
   };
@@ -1256,8 +1305,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       setCurrentUserId(matched.id);
+      setIsLoggedIn(true);
+      localStorage.setItem('classmate_is_logged_in', 'true');
+      localStorage.setItem('classmate_current_user_id', matched.id);
       setIsAuthModalOpen(false);
-      setActiveTab('feed');
+      setActiveTabState('feed');
       showToast(
         language === 'bn' ? 'স্বাগতম!' : 'Signed In Successfully', 
         `${language === 'bn' ? 'স্বাগতম' : 'Welcome back to ClassMate,'} ${matched.name}!`, 
@@ -1291,8 +1343,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setUsers(prev => [newUser, ...prev]);
     setCurrentUserId(newUser.id);
+    setIsLoggedIn(true);
+    localStorage.setItem('classmate_is_logged_in', 'true');
+    localStorage.setItem('classmate_current_user_id', newUser.id);
     setIsAuthModalOpen(false);
-    setActiveTab('feed');
+    setActiveTabState('feed');
     showToast(
       language === 'bn' ? 'নতুন আইডি তৈরি হয়েছে' : 'Signed In',
       `Welcome to ClassMate, ${newUser.name}!`,
@@ -1331,8 +1386,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     if (matched) {
       setCurrentUserId(matched.id);
+      setIsLoggedIn(true);
+      localStorage.setItem('classmate_is_logged_in', 'true');
+      localStorage.setItem('classmate_current_user_id', matched.id);
       setIsAuthModalOpen(false);
-      setActiveTab('feed');
+      setActiveTabState('feed');
       showToast(
         language === 'bn' ? 'আইডি পাওয়া গেছে' : 'Account Found', 
         `Logged in as existing student ${matched.name}.`, 
@@ -1371,8 +1429,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setUsers(prev => [newUser, ...prev]);
     setCurrentUserId(newUser.id);
+    setIsLoggedIn(true);
+    localStorage.setItem('classmate_is_logged_in', 'true');
+    localStorage.setItem('classmate_current_user_id', newUser.id);
     setIsAuthModalOpen(false);
-    setActiveTab('feed');
+    setActiveTabState('feed');
     showToast(
       language === 'bn' ? 'স্টুডেন্ট অ্যাকাউন্ট তৈরি হয়েছে! 🎉' : 'Student Account Created! 🎉', 
       `Welcome to ClassMate, ${newUser.name}! Your campus profile is active.`, 
@@ -1755,6 +1816,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         toggleVideo,
         toggleScreenShare,
         updateSharedCallNotes,
+        isLoggedIn,
+        setIsLoggedIn,
+        requireAuth,
         isAuthModalOpen,
         setIsAuthModalOpen,
         loginWithCredentials,
