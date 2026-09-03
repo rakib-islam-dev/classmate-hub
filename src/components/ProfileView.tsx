@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { AcademicStatus } from '../types';
 import { 
@@ -13,10 +13,13 @@ import {
   Mail,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  Camera,
+  Check
 } from 'lucide-react';
 import { CampusPhotoModal } from './CampusPhotoModal';
 import { rakibulAvatar } from '../data/mockData';
+import { compressImage } from '../utils/imageCompressor';
 
 export const ProfileView: React.FC = () => {
   const { 
@@ -39,6 +42,7 @@ export const ProfileView: React.FC = () => {
   const [status, setStatus] = useState<AcademicStatus>(currentUser.status);
   const [interestsText, setInterestsText] = useState(currentUser.interests.join(', '));
   const [avatar, setAvatar] = useState(currentUser.avatar);
+  const heroAvatarInputRef = useRef<HTMLInputElement>(null);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   // Security Credentials state
@@ -72,22 +76,38 @@ export const ProfileView: React.FC = () => {
     { label: 'Student 5', url: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=400&auto=format&fit=crop&q=80' }
   ];
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setAvatar(reader.result);
-          showToast(
-            language === 'bn' ? 'ছবি আপলোড হয়েছে' : 'Photo Uploaded',
-            language === 'bn' ? 'নতুন প্রোফাইল ছবি যুক্ত হয়েছে।' : 'New profile picture selected.',
-            'success'
-          );
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 320, 0.85);
+        setAvatar(compressed);
+        updateUserProfile({ avatar: compressed });
+        showToast(
+          language === 'bn' ? 'ছবি পরিবর্তিত হয়েছে ✅' : 'Profile Photo Updated ✅',
+          language === 'bn' ? 'আপনার নতুন প্রোফাইল ছবি তাৎক্ষণিকভাবে আপডেট ও সংরক্ষিত হয়েছে।' : 'Your profile picture has been updated and saved.',
+          'success'
+        );
+      } catch {
+        showToast(
+          language === 'bn' ? 'ছবি পড়তে সমস্যা হয়েছে' : 'Photo Load Error',
+          language === 'bn' ? 'অনুগ্রহ করে ভিন্ন কোনো ছবি দিয়ে চেষ্টা করুন।' : 'Please try another image file.',
+          'info'
+        );
+      } finally {
+        e.target.value = '';
+      }
     }
+  };
+
+  const handleSelectPresetAvatar = (url: string, label: string) => {
+    setAvatar(url);
+    updateUserProfile({ avatar: url });
+    showToast(
+      language === 'bn' ? 'অ্যাভাটার পরিবর্তিত হয়েছে ✅' : 'Avatar Changed ✅',
+      `${language === 'bn' ? 'নির্বাচিত অ্যাভাটার' : 'Active avatar'}: ${label}`,
+      'success'
+    );
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -176,13 +196,42 @@ export const ProfileView: React.FC = () => {
         {/* Content */}
         <div className="relative z-10 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="relative">
-              <img
-                src={avatar}
-                alt=""
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover ring-4 ring-white/30 shadow-xl"
+            <div className="relative group">
+              <input
+                ref={heroAvatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
               />
-              <span className={`absolute bottom-1 right-1 w-4 h-4 rounded-full ring-2 ring-slate-900 ${
+              <div 
+                onClick={() => heroAvatarInputRef.current?.click()}
+                className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden ring-4 ring-white/30 shadow-xl cursor-pointer group-hover:ring-indigo-400 transition-all"
+                title={language === 'bn' ? 'ছবি পরিবর্তন করতে ক্লিক করুন' : 'Click to change profile picture'}
+              >
+                <img
+                  src={avatar}
+                  alt={currentUser.name}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                  <Camera className="w-5 h-5 mb-0.5" />
+                  <span className="text-[9px] font-bold">{language === 'bn' ? 'পরিবর্তন' : 'Change'}</span>
+                </div>
+              </div>
+
+              {/* Quick Camera Trigger Button */}
+              <button
+                type="button"
+                onClick={() => heroAvatarInputRef.current?.click()}
+                className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md border-2 border-slate-900 cursor-pointer transition-transform hover:scale-110"
+                title={language === 'bn' ? 'নতুন ছবি আপলোড করুন' : 'Upload new photo'}
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
+
+              <span className={`absolute top-0 left-0 w-4 h-4 rounded-full ring-2 ring-slate-900 ${
                 status === 'online' ? 'bg-emerald-500' :
                 status === 'studying' ? 'bg-amber-500' :
                 status === 'in_call' ? 'bg-indigo-500' : 'bg-slate-400'
@@ -541,25 +590,53 @@ export const ProfileView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {sampleAvatars.map((item, i) => (
-              <div
-                key={i}
-                onClick={() => setAvatar(item.url)}
-                className={`relative rounded-2xl overflow-hidden cursor-pointer w-14 h-14 border-2 transition-all ${
-                  avatar === item.url 
-                    ? 'border-indigo-600 ring-4 ring-indigo-500/30 scale-105 shadow-md' 
-                    : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100 hover:scale-105'
-                }`}
-                title={item.label}
-              >
-                <img
-                  src={item.url}
-                  alt={item.label}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
+            {/* Active Selected Avatar Preview */}
+            <div
+              className="relative rounded-2xl overflow-hidden w-16 h-16 border-2 border-indigo-600 ring-4 ring-indigo-500/30 scale-105 shadow-md shrink-0"
+              title={language === 'bn' ? 'বর্তমান নির্বাচিত ছবি' : 'Active Selected Photo'}
+            >
+              <img
+                src={avatar}
+                alt="Active Avatar"
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute bottom-0 inset-x-0 bg-indigo-600/90 text-white text-[9px] font-bold py-0.5 text-center">
+                {language === 'bn' ? 'সক্রিয়' : 'Active'}
               </div>
-            ))}
+            </div>
+
+            <div className="h-10 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
+
+            {/* Presets */}
+            {sampleAvatars.map((item, i) => {
+              const isSelected = avatar === item.url;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handleSelectPresetAvatar(item.url, item.label)}
+                  className={`relative rounded-2xl overflow-hidden cursor-pointer w-14 h-14 border-2 transition-all shrink-0 ${
+                    isSelected 
+                      ? 'border-indigo-600 ring-2 ring-indigo-500/50 scale-105 shadow-sm' 
+                      : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-100 hover:scale-105'
+                  }`}
+                  title={item.label}
+                >
+                  <img
+                    src={item.url}
+                    alt={item.label}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                  {isSelected && (
+                    <div className="absolute inset-0 bg-indigo-600/30 flex items-center justify-center">
+                      <Check className="w-4 h-4 text-white stroke-[3]" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

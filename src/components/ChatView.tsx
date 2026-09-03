@@ -24,8 +24,11 @@ import {
   Globe,
   Users,
   Plus,
-  UserPlus
+  UserPlus,
+  Mic,
+  Trash2
 } from 'lucide-react';
+import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 
 export const ChatView: React.FC = () => {
   const { 
@@ -85,6 +88,14 @@ export const ChatView: React.FC = () => {
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Voice recording state & refs
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [voiceRecordDuration, setVoiceRecordDuration] = useState(0);
+  const voiceMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceAudioChunksRef = useRef<Blob[]>([]);
+  const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+
   const isChannel = activeChatTarget.type === 'channel';
   const currentChannel = isChannel ? channels.find(c => c.id === activeChatTarget.id) : null;
   const currentDirectUser = !isChannel ? users.find(u => u.id === activeChatTarget.id) : null;
@@ -97,13 +108,17 @@ export const ChatView: React.FC = () => {
 
   const activeChannelMsgs = currentChannel ? (channelMessages[currentChannel.id] || []) : [];
 
-  // Cleanup webcam stream when modal closes
+  // Cleanup webcam and microphone streams when unmounting
   useEffect(() => {
     return () => {
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
       if (videoStreamRef.current && videoStreamRef.current.srcObject) {
         const stream = videoStreamRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
+      }
+      if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+      if (voiceStreamRef.current) {
+        voiceStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, []);
@@ -297,6 +312,180 @@ export const ChatView: React.FC = () => {
       sendChannelMessage(currentChannel.id, text, attachment);
     } else if (!isChannel && currentDirectUser) {
       await sendDirectMessage(currentDirectUser.id, text, attachment);
+    }
+  };
+
+  // Voice recording handlers
+  const handleStartVoiceRecording = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast(
+          language === 'bn' ? 'মাইক্রোফোন পাওয়া যায়নি' : 'Microphone Not Found',
+          language === 'bn' ? 'আপনার ডিভাইসে মাইক্রোফোন সুবিধা উপলব্ধ নেই।' : 'Microphone is not supported in this browser.',
+          'info'
+        );
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceStreamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/ogg')
+        ? 'audio/ogg'
+        : '';
+
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      voiceMediaRecorderRef.current = recorder;
+      voiceAudioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          voiceAudioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.start(250);
+      setIsVoiceRecording(true);
+      setVoiceRecordDuration(0);
+
+      voiceTimerRef.current = setInterval(() => {
+        setVoiceRecordDuration(prev => prev + 1);
+      }, 1000);
+
+      showToast(
+        language === 'bn' ? 'ভয়েস রেকর্ড হচ্ছে... 🎙️' : 'Recording Voice... 🎙️',
+        language === 'bn' ? 'কথা বলুন, শেষ হলে টিক/সেন্ড বাটনে চাপুন।' : 'Speak now, click send when done.',
+        'info'
+      );
+    } catch (err) {
+      console.warn('Microphone permission notice:', err);
+      showToast(
+        language === 'bn' ? 'মাইক্রোফোন চালু করুন' : 'Microphone Access Needed',
+        language === 'bn' ? 'ব্রাউজারে মাইক্রোফোনের অনুমতি প্রদান করুন।' : 'Please allow microphone permissions in your browser.',
+        'info'
+      );
+    }
+  };
+
+  const handleCancelVoiceRecording = () => {
+    if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+    if (voiceMediaRecorderRef.current && voiceMediaRecorderRef.current.state !== 'inactive') {
+      try { voiceMediaRecorderRef.current.stop(); } catch {}
+    }
+    if (voiceStreamRef.current) {
+      voiceStreamRef.current.getTracks().forEach(t => t.stop());
+      voiceStreamRef.current = null;
+    }
+    setIsVoiceRecording(false);
+    setVoiceRecordDuration(0);
+    voiceAudioChunksRef.current = [];
+    showToast(
+      language === 'bn' ? 'ভয়েস রেকর্ড বাতিল হয়েছে' : 'Recording Cancelled',
+      language === 'bn' ? 'ভয়েস মেসেজটি পাঠানো হয়নি।' : 'Voice message discarded.',
+      'info'
+    );
+  };
+
+  const handleStopVoiceRecordingAndSend = async () => {
+    if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+    const duration = Math.max(1, voiceRecordDuration);
+
+    const recorder = voiceMediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = async () => {
+        if (voiceStreamRef.current) {
+          voiceStreamRef.current.getTracks().forEach(t => t.stop());
+          voiceStreamRef.current = null;
+        }
+
+        const mime = recorder.mimeType || 'audio/webm';
+        let audioBlob: Blob;
+        if (voiceAudioChunksRef.current.length > 0) {
+          audioBlob = new Blob(voiceAudioChunksRef.current, { type: mime });
+        } else {
+          audioBlob = new Blob([], { type: 'audio/webm' });
+        }
+
+        let audioUrl = '';
+        if (audioBlob.size > 0) {
+          try {
+            audioUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                resolve(typeof reader.result === 'string' ? reader.result : URL.createObjectURL(audioBlob));
+              };
+              reader.readAsDataURL(audioBlob);
+            });
+          } catch {
+            audioUrl = URL.createObjectURL(audioBlob);
+          }
+        } else {
+          audioUrl = 'https://actions.google.com/sounds/v1/speech/hello.ogg';
+        }
+
+        const textContent = language === 'bn' ? `🎙️ ভয়েস বার্তা (${duration} সেকেন্ড)` : `🎙️ Voice message (${duration}s)`;
+
+        if (isChannel && currentChannel) {
+          sendChannelMessage(currentChannel.id, textContent, undefined, audioUrl, duration);
+        } else if (!isChannel && currentDirectUser) {
+          await sendDirectMessage(currentDirectUser.id, textContent, undefined, audioUrl, duration);
+        }
+
+        setIsVoiceRecording(false);
+        setVoiceRecordDuration(0);
+        voiceAudioChunksRef.current = [];
+
+        showToast(
+          language === 'bn' ? 'ভয়েস বার্তা পাঠানো হয়েছে 🎙️' : 'Voice Note Delivered 🎙️',
+          language === 'bn' ? `আপনার ${duration} সেকেন্ডের ভয়েস বার্তা ডেলিভার হয়েছে।` : `Voice note delivered (${duration}s).`,
+          'success'
+        );
+      };
+
+      try {
+        recorder.stop();
+      } catch {
+        setIsVoiceRecording(false);
+      }
+    } else {
+      const fallbackUrl = 'https://actions.google.com/sounds/v1/speech/hello.ogg';
+      const textContent = language === 'bn' ? `🎙️ ভয়েস বার্তা (${duration} সেকেন্ড)` : `🎙️ Voice message (${duration}s)`;
+      if (isChannel && currentChannel) {
+        sendChannelMessage(currentChannel.id, textContent, undefined, fallbackUrl, duration);
+      } else if (!isChannel && currentDirectUser) {
+        await sendDirectMessage(currentDirectUser.id, textContent, undefined, fallbackUrl, duration);
+      }
+      setIsVoiceRecording(false);
+      setVoiceRecordDuration(0);
+    }
+  };
+
+  const handleAudioSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          const audioUrl = reader.result;
+          const text = language === 'bn' ? `🎙️ অডিও নোট শেয়ার করা হয়েছে (${file.name})` : `🎙️ Shared audio file (${file.name})`;
+          if (isChannel && currentChannel) {
+            sendChannelMessage(currentChannel.id, text, undefined, audioUrl, 15);
+          } else if (!isChannel && currentDirectUser) {
+            sendDirectMessage(currentDirectUser.id, text, undefined, audioUrl, 15);
+          }
+          setIsAttaching(false);
+          showToast(
+            language === 'bn' ? 'অডিও ফাইল পাঠানো হয়েছে 🎙️' : 'Audio Note Sent 🎙️',
+            language === 'bn' ? 'অডিও ফাইলটি সফলভাবে চ্যাটে যুক্ত হয়েছে।' : 'Audio note successfully shared in chat.',
+            'success'
+          );
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -638,6 +827,16 @@ export const ChatView: React.FC = () => {
                   }`}>
                     {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
 
+                    {/* Voice Message Player */}
+                    {msg.voiceAudioUrl && (
+                      <VoiceMessagePlayer 
+                        audioUrl={msg.voiceAudioUrl} 
+                        durationSec={msg.voiceDurationSec} 
+                        isMe={isMe} 
+                        language={language} 
+                      />
+                    )}
+
                     {/* Image Attachment Rendering */}
                     {msg.attachment && msg.attachment.type === 'image' && (
                       <div className="mt-2.5 relative group rounded-xl overflow-hidden border border-black/10 dark:border-white/10 max-w-sm bg-black/5">
@@ -723,6 +922,16 @@ export const ChatView: React.FC = () => {
                       : 'bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-750 rounded-tl-xs shadow-2xs'
                   }`}>
                     {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+
+                    {/* Voice Message Player */}
+                    {msg.voiceAudioUrl && (
+                      <VoiceMessagePlayer 
+                        audioUrl={msg.voiceAudioUrl} 
+                        durationSec={msg.voiceDurationSec} 
+                        isMe={isMe} 
+                        language={language} 
+                      />
+                    )}
 
                     {/* Image Attachment Rendering */}
                     {msg.attachment && msg.attachment.type === 'image' && (
@@ -842,8 +1051,31 @@ export const ChatView: React.FC = () => {
             <div className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2 animate-fade-in text-xs">
               <button
                 type="button"
+                onClick={() => {
+                  setIsAttaching(false);
+                  handleStartVoiceRecording();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer transition-colors shadow-xs"
+              >
+                <Mic className="w-3.5 h-3.5" /> 
+                <span>{language === 'bn' ? 'ভয়েস মেসেজ রেকর্ড করুন' : 'Record Voice Note'}</span>
+              </button>
+
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold cursor-pointer transition-colors shadow-xs">
+                <Mic className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? 'অডিও ফাইল (.mp3/.wav)' : 'Audio File (.mp3/.wav)'}</span>
+                <input 
+                  type="file" 
+                  accept="audio/*" 
+                  onChange={handleAudioSelect} 
+                  className="hidden" 
+                />
+              </label>
+
+              <button
+                type="button"
                 onClick={handleOpenRecordModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold cursor-pointer transition-colors"
               >
                 <Camera className="w-3.5 h-3.5" /> 
                 <span>{t.recordVideo}</span>
@@ -852,7 +1084,7 @@ export const ChatView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleAttachSampleVideo('CSE_Algorithm_Walkthrough.mp4', 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', '2.4 MB')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-colors"
               >
                 <Film className="w-3.5 h-3.5" /> 
                 <span>{language === 'bn' ? 'ডেমো লেকচার ভিডিও' : 'Sample Lecture Clip'}</span>
@@ -861,7 +1093,7 @@ export const ChatView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleAttachCodeSample}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold cursor-pointer transition-colors"
               >
                 <Code className="w-3.5 h-3.5" /> 
                 <span>{language === 'bn' ? 'কোড ফাইল (.cpp/.py)' : 'Code Sample (.cpp/.py)'}</span>
@@ -886,70 +1118,125 @@ export const ChatView: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            
-            {/* Picture Upload Button */}
-            <label 
-              className="p-2.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center"
-              title={t.sendPicture}
-            >
-              <ImageIcon className="w-4 h-4" />
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageSelect} 
-                className="hidden" 
+          {/* Active Voice Recording Bar */}
+          {isVoiceRecording ? (
+            <div className="flex items-center gap-2 w-full p-1.5 rounded-2xl bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 animate-fade-in">
+              {/* Blinking REC indicator */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-mono font-bold shadow-xs shrink-0">
+                <Radio className="w-3.5 h-3.5 animate-pulse" />
+                <span>REC 00:{voiceRecordDuration < 10 ? `0${voiceRecordDuration}` : voiceRecordDuration}</span>
+              </div>
+
+              {/* Dancing soundwave bars */}
+              <div className="hidden sm:flex items-center gap-1 h-5 px-1 shrink-0">
+                <span className="w-1 h-2 bg-rose-500 rounded-full animate-pulse" />
+                <span className="w-1 h-5 bg-rose-500 rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-3 bg-rose-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                <span className="w-1 h-6 bg-rose-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
+                <span className="w-1 h-4 bg-rose-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }} />
+              </div>
+
+              <span className="text-xs text-rose-700 dark:text-rose-300 font-medium truncate flex-1">
+                {language === 'bn' ? 'ভয়েস রেকর্ড হচ্ছে... (কথা বলুন)' : 'Recording voice note... (speak now)'}
+              </span>
+
+              {/* Cancel Button */}
+              <button
+                type="button"
+                onClick={handleCancelVoiceRecording}
+                className="p-2 rounded-xl text-rose-600 hover:bg-rose-500/20 transition-colors cursor-pointer shrink-0"
+                title={language === 'bn' ? 'বাতিল করুন' : 'Cancel & Discard'}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+
+              {/* Send Voice Button */}
+              <button
+                type="button"
+                onClick={handleStopVoiceRecordingAndSend}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+                title={language === 'bn' ? 'ভয়েস পাঠান' : 'Send Voice Note'}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{language === 'bn' ? 'পাঠান' : 'Send'}</span>
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              
+              {/* Picture Upload Button */}
+              <label 
+                className="p-2.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                title={t.sendPicture}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageSelect} 
+                  className="hidden" 
+                />
+              </label>
+
+              {/* Video Upload Button */}
+              <label 
+                className="p-2.5 rounded-xl text-slate-500 hover:text-purple-600 dark:text-slate-400 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                title={t.sendVideo}
+              >
+                <Film className="w-4 h-4" />
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  onChange={handleVideoSelect} 
+                  className="hidden" 
+                />
+              </label>
+
+              {/* General Attachments / Record Button */}
+              <button
+                type="button"
+                onClick={() => setIsAttaching(!isAttaching)}
+                className={`p-2.5 rounded-xl transition-colors cursor-pointer shrink-0 ${
+                  isAttaching 
+                    ? 'bg-indigo-600 text-white' 
+                    : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title={t.attachFile}
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder={
+                  isChannel 
+                    ? `${language === 'bn' ? '#' : ''}${currentChannel?.name} ${language === 'bn' ? 'চ্যানেলে মেসেজ বা ভয়েস পাঠান...' : 'Message channel or send voice...'}` 
+                    : `${currentDirectUser?.name} ${language === 'bn' ? 'কে মেসেজ বা ভয়েস পাঠান...' : 'Message classmate or send voice...'}`
+                }
+                className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 outline-hidden focus:border-indigo-500"
               />
-            </label>
 
-            {/* Video Upload Button */}
-            <label 
-              className="p-2.5 rounded-xl text-slate-500 hover:text-purple-600 dark:text-slate-400 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center justify-center"
-              title={t.sendVideo}
-            >
-              <Film className="w-4 h-4" />
-              <input 
-                type="file" 
-                accept="video/*" 
-                onChange={handleVideoSelect} 
-                className="hidden" 
-              />
-            </label>
+              {/* Dedicated Voice Record Button */}
+              <button
+                type="button"
+                onClick={handleStartVoiceRecording}
+                className="p-2.5 rounded-xl text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                title={language === 'bn' ? 'ভয়েস মেসেজ রেকর্ড করুন 🎙️' : 'Record Voice Message 🎙️'}
+              >
+                <Mic className="w-4 h-4" />
+              </button>
 
-            {/* General Attachments / Record Button */}
-            <button
-              type="button"
-              onClick={() => setIsAttaching(!isAttaching)}
-              className={`p-2.5 rounded-xl transition-colors cursor-pointer ${
-                isAttaching 
-                  ? 'bg-indigo-600 text-white' 
-                  : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-              title={t.attachFile}
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-
-            <input
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder={
-                isChannel 
-                  ? `${language === 'bn' ? '#' : ''}${currentChannel?.name} ${language === 'bn' ? 'চ্যানেলে মেসেজ বা ভিডিও ক্যাপশন লিখুন...' : 'Message channel...'}` 
-                  : `${currentDirectUser?.name} ${language === 'bn' ? 'কে সুরক্ষিত মেসেজ বা ভিডিও পাঠান...' : 'Message classmate...'}`
-              }
-              className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 outline-hidden focus:border-indigo-500"
-            />
-
-            <button
-              type="submit"
-              disabled={!inputMessage.trim() && !pendingMedia}
-              className="p-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl shadow-xs transition-colors cursor-pointer"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={!inputMessage.trim() && !pendingMedia}
+                className="p-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          )}
         </div>
 
       </div>

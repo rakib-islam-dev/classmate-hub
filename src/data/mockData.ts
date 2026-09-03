@@ -355,6 +355,17 @@ export const mockDirectMessages: DirectMessage[] = [
     timestamp: 'Yesterday',
     encrypted: true,
     read: true
+  },
+  {
+    id: 'msg_voice_sample',
+    senderId: 'usr_6',
+    receiverId: 'usr_1',
+    content: 'পদার্থবিজ্ঞানের কাজ ও শক্তি অধ্যায়ের ব্যাখ্যার অডিও নোট 🎙️',
+    timestamp: 'Just now',
+    encrypted: true,
+    voiceAudioUrl: 'https://actions.google.com/sounds/v1/speech/hello.ogg',
+    voiceDurationSec: 14,
+    read: true
   }
 ];
 
@@ -524,6 +535,19 @@ export const mockChannelMessages: { [channelId: string]: ChannelMessage[] } = {
       timestamp: '11:30 AM',
       encrypted: false,
       upvotes: 9
+    },
+    {
+      id: 'cmsg_voice_4',
+      channelId: 'chan_ssc2027_science',
+      senderId: 'usr_6',
+      senderName: 'Tahsin Ahmed',
+      senderAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&auto=format&fit=crop&q=80',
+      content: 'রসায়ন পর্যায় সারণির গুরুত্বপূর্ণ কিছু শর্টকাট টেকনিকের অডিও নোট 🎙️',
+      timestamp: '11:45 AM',
+      encrypted: false,
+      voiceAudioUrl: 'https://actions.google.com/sounds/v1/speech/hello.ogg',
+      voiceDurationSec: 18,
+      upvotes: 14
     }
   ]
 };

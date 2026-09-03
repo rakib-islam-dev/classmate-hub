@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   GraduationCap, 
@@ -17,9 +17,11 @@ import {
   Eye,
   EyeOff,
   HelpCircle,
-  RotateCcw
+  RotateCcw,
+  Camera
 } from 'lucide-react';
 import { rakibulAvatar } from '../data/mockData';
+import { compressImage } from '../utils/imageCompressor';
 
 export const AuthModal: React.FC = () => {
   const { 
@@ -41,12 +43,12 @@ export const AuthModal: React.FC = () => {
   // Method: 'google' | 'username' | 'phone'
   const [method, setMethod] = useState<'google' | 'username' | 'phone'>('google');
 
-  // Form Fields
+  // Form Fields - initialized cleanly without hardcoded pre-filled values
   const [fullName, setFullName] = useState('');
-  const [emailInput, setEmailInput] = useState('rakibulislamq1673@gmail.com');
-  const [usernameInput, setUsernameInput] = useState('rakibul_cse');
+  const [emailInput, setEmailInput] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
   const [countryCode, setCountryCode] = useState('+880');
-  const [phoneDigits, setPhoneDigits] = useState('1711223344');
+  const [phoneDigits, setPhoneDigits] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -60,16 +62,7 @@ export const AuthModal: React.FC = () => {
   const [department, setDepartment] = useState('Science (বিজ্ঞান বিভাগ)');
   const [semester, setSemester] = useState('SSC 2027 Batch (Class 10)');
   
-  // Avatar Selection
-  const [selectedAvatar, setSelectedAvatar] = useState<string>(rakibulAvatar);
-
-  // OTP State for Mobile Phone verification
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpValue, setOtpValue] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('491823');
-
-  if (!isAuthModalOpen) return null;
-
+  // Avatar Selection & Custom Upload
   const presetAvatars = [
     { label: 'Rakibul Islam (Cadet Uniform)', url: rakibulAvatar },
     { label: 'Student 1 (Male)', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80' },
@@ -78,6 +71,17 @@ export const AuthModal: React.FC = () => {
     { label: 'Student 4 (Female)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80' },
     { label: 'Student 5 (Male)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80' }
   ];
+
+  const [selectedAvatar, setSelectedAvatar] = useState<string>(presetAvatars[0].url);
+  const [isCustomPhoto, setIsCustomPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // OTP State for Mobile Phone verification
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('491823');
+
+  if (!isAuthModalOpen) return null;
 
   const countryCodes = [
     { code: '+880', country: 'BD (+880)' },
@@ -110,21 +114,27 @@ export const AuthModal: React.FC = () => {
     );
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setSelectedAvatar(reader.result);
-          showToast(
-            language === 'bn' ? 'ছবি যুক্ত হয়েছে' : 'Photo Loaded',
-            language === 'bn' ? 'প্রোফাইল ছবি সফলভাবে যুক্ত হয়েছে।' : 'Profile photo attached.',
-            'success'
-          );
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 320, 0.85);
+        setSelectedAvatar(compressed);
+        setIsCustomPhoto(true);
+        showToast(
+          language === 'bn' ? 'ছবি যুক্ত হয়েছে ✅' : 'Photo Loaded ✅',
+          language === 'bn' ? 'আপনার নিজস্ব প্রোফাইল ছবি সফলভাবে লোড হয়েছে।' : 'Profile photo loaded successfully.',
+          'success'
+        );
+      } catch {
+        showToast(
+          language === 'bn' ? 'ছবি পড়তে সমস্যা হয়েছে' : 'Photo Load Error',
+          language === 'bn' ? 'অনুগ্রহ করে ভিন্ন কোনো ছবি নির্বাচন করুন।' : 'Please choose another photo file.',
+          'info'
+        );
+      } finally {
+        if (e.target) e.target.value = '';
+      }
     }
   };
 
@@ -166,6 +176,7 @@ export const AuthModal: React.FC = () => {
 
     const fullPhoneNumber = `${countryCode} ${phoneDigits.trim()}`;
 
+    // SIGN IN FLOW
     if (authMode === 'signin') {
       let identifier = '';
       if (method === 'google') identifier = emailInput.trim();
@@ -181,42 +192,99 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      loginWithCredentials(method, identifier, passwordInput.trim() || undefined);
+      if (!passwordInput.trim()) {
+        showToast(
+          language === 'bn' ? 'পাসওয়ার্ড দিন' : 'Password Required',
+          language === 'bn' ? 'অনুগ্রহ করে পাসওয়ার্ড লিখুন।' : 'Please enter your password.',
+          'info'
+        );
+        return;
+      }
+
+      loginWithCredentials(method, identifier, passwordInput.trim());
       return;
     }
 
-    // SIGNUP (CREATE ACCOUNT) FLOW
-    let primaryIdentifier = '';
-    if (method === 'google') primaryIdentifier = emailInput.trim();
-    else if (method === 'username') primaryIdentifier = usernameInput.trim();
-    else primaryIdentifier = fullPhoneNumber;
-
-    if (!fullName.trim() && method !== 'google') {
+    // SIGN UP (NEW STUDENT ACCOUNT) FLOW
+    if (!fullName.trim() || fullName.trim().length < 2) {
       showToast(
         language === 'bn' ? 'নাম প্রয়োজন' : 'Name Required',
-        language === 'bn' ? 'অনুগ্রহ করে আপনার পুরো নাম লিখুন।' : 'Please enter your full name.',
+        language === 'bn' ? 'অনুগ্রহ করে শিক্ষার্থীর সম্পূর্ণ নাম লিখুন।' : 'Please enter your full student name.',
         'info'
       );
       return;
     }
 
-    if (passwordInput && confirmPasswordInput && passwordInput !== confirmPasswordInput) {
+    let primaryIdentifier = '';
+    if (method === 'google') {
+      const cleanEmail = emailInput.trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        showToast(
+          language === 'bn' ? 'সঠিক ইমেইল প্রয়োজন' : 'Valid Email Required',
+          language === 'bn' ? 'একটি সঠিক ইমেইল বা জিমেইল ঠিকানা দিন (যেমন: student@gmail.com)।' : 'Please enter a valid email address (e.g. student@gmail.com).',
+          'info'
+        );
+        return;
+      }
+      primaryIdentifier = cleanEmail;
+    } else if (method === 'username') {
+      const cleanUname = usernameInput.trim().replace('@', '').toLowerCase();
+      if (!cleanUname || cleanUname.length < 3) {
+        showToast(
+          language === 'bn' ? 'ইউজারনেম প্রয়োজন' : 'Username Required',
+          language === 'bn' ? 'কমপক্ষে ৩ অক্ষরের একটি ক্যাম্পাস ইউজারনেম লিখুন।' : 'Username must be at least 3 characters.',
+          'info'
+        );
+        return;
+      }
+      primaryIdentifier = cleanUname;
+    } else {
+      const cleanPhone = phoneDigits.trim();
+      if (!cleanPhone || cleanPhone.length < 8) {
+        showToast(
+          language === 'bn' ? 'মোবাইল নম্বর প্রয়োজন' : 'Phone Required',
+          language === 'bn' ? 'অনুগ্রহ করে আপনার সঠিক মোবাইল নম্বরটি লিখুন।' : 'Please enter your valid phone number.',
+          'info'
+        );
+        return;
+      }
+      primaryIdentifier = fullPhoneNumber;
+    }
+
+    if (!passwordInput.trim() || passwordInput.trim().length < 4) {
+      showToast(
+        language === 'bn' ? 'পাসওয়ার্ড সেট করুন' : 'Password Required',
+        language === 'bn' ? 'কমপক্ষে ৪ অক্ষরের একটি নিরাপদ পাসওয়ার্ড লিখুন।' : 'Password must be at least 4 characters long.',
+        'info'
+      );
+      return;
+    }
+
+    if (passwordInput.trim() !== confirmPasswordInput.trim()) {
       showToast(
         language === 'bn' ? 'পাসওয়ার্ড মেলেনি' : 'Passwords Do Not Match',
-        language === 'bn' ? 'নতুন পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড একই হতে হবে।' : 'Passwords do not match.',
+        language === 'bn' ? 'নতুন পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড একই হতে হবে।' : 'Password and confirmation password do not match.',
         'info'
       );
       return;
     }
 
-    createAccount({
-      name: fullName.trim() || (method === 'google' ? emailInput.split('@')[0].replace('.', ' ') : 'Student Classmate'),
+    const cleanUsername = method === 'username'
+      ? usernameInput.trim().replace('@', '').toLowerCase()
+      : (emailInput.trim() ? emailInput.trim().split('@')[0].toLowerCase().replace(/\./g, '_') : fullName.toLowerCase().trim().replace(/\s+/g, '_'));
+
+    const cleanEmail = method === 'google'
+      ? emailInput.trim().toLowerCase()
+      : `${cleanUsername}@gmail.com`;
+
+    const res = createAccount({
+      name: fullName.trim(),
       method,
       identifier: primaryIdentifier,
-      password: passwordInput.trim() || 'password123',
-      email: method === 'google' ? emailInput.trim() : `${usernameInput.trim().replace('@', '') || 'student'}@gmail.com`,
-      username: usernameInput.trim() ? usernameInput.trim().replace('@', '') : (emailInput ? emailInput.split('@')[0] : 'classmate'),
-      phone: fullPhoneNumber,
+      password: passwordInput.trim(),
+      email: cleanEmail,
+      username: cleanUsername,
+      phone: method === 'phone' ? primaryIdentifier : '+880 1700 998877',
       department,
       semester,
       university: 'Quantum Cosmo School, Lama, Bandarban',
@@ -225,26 +293,21 @@ export const AuthModal: React.FC = () => {
       currentStudyFocus: `SSC 2027 ${department.split(' ')[0]} Preparation & Study Squad`,
       interests: [department.split(' ')[0], 'SSC 2027', 'CQ/MCQ Solving', 'Notes Sharing']
     });
+
+    if (res && res.success) {
+      setFullName('');
+      setEmailInput('');
+      setUsernameInput('');
+      setPhoneDigits('');
+      setPasswordInput('');
+      setConfirmPasswordInput('');
+    }
   };
 
-  // Google 1-Tap quick login helper
-  const handleQuickGoogleAuth = () => {
-    createAccount({
-      name: 'Md. Rakibul Islam',
-      method: 'google',
-      identifier: 'rakibulislamq1673@gmail.com',
-      password: 'password123',
-      email: 'rakibulislamq1673@gmail.com',
-      username: 'rakibul_qcs27',
-      phone: '+880 1711 223344',
-      department: 'Science (বিজ্ঞান বিভাগ)',
-      semester: 'SSC 2027 Batch (Class 10)',
-      university: 'Quantum Cosmo School, Lama, Bandarban',
-      avatar: rakibulAvatar,
-      bio: 'Quantum Cosmo School SSC 2027 Candidate (Science Group, Cadet Section). Enthusiastic about Physics, Higher Math, and peer study rooms.',
-      currentStudyFocus: 'Physics Chapter 4 & Higher Math Coordinate Geometry',
-      interests: ['Physics', 'Higher Math', 'Chemistry', 'Quantum Cosmo', 'SSC 2027']
-    });
+  // Quick Demo account loader for instant testing without typing
+  const handleCadetDemoLogin = () => {
+    switchUserPersona('usr_1');
+    setIsAuthModalOpen(false);
   };
 
   return (
@@ -409,86 +472,156 @@ export const AuthModal: React.FC = () => {
             </form>
           ) : (
             <>
-              {/* Quick Google 1-Click Button */}
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={handleQuickGoogleAuth}
-                  className="w-full py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
-                  </svg>
-                  <span>{language === 'bn' ? 'গুগল / জিমেইল দিয়ে দ্রুত শুরু করুন (Rakibul Islam)' : 'Continue with Google / Gmail (Rakibul Islam)'}</span>
-                </button>
-
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{t.orChooseMethod}</span>
-                  <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+              {/* Choice of Signin/Signup Method: Gmail vs Username vs Mobile Phone */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                  <span>{authMode === 'signup' ? (language === 'bn' ? 'নিবন্ধন মাধ্যম নির্বাচন করুন:' : 'Choose Signup Method:') : (language === 'bn' ? 'লগইন মাধ্যম নির্বাচন করুন:' : 'Choose Login Method:')}</span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">{method === 'google' ? 'Gmail / Google' : method === 'username' ? 'Username' : 'Mobile SMS'}</span>
                 </div>
-              </div>
 
-              {/* Three Choice Buttons: Gmail vs Username vs Mobile Phone */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMethod('google')}
-                  className={`p-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                    method === 'google'
-                      ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>{t.gmailGoogle}</span>
-                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMethod('google')}
+                    className={`p-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      method === 'google'
+                        ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>{t.gmailGoogle}</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setMethod('username')}
-                  className={`p-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                    method === 'username'
-                      ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <UserIcon className="w-4 h-4" />
-                  <span>{t.usernameId}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setMethod('username')}
+                    className={`p-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      method === 'username'
+                        ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <UserIcon className="w-4 h-4" />
+                    <span>{t.usernameId}</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setMethod('phone')}
-                  className={`p-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                    method === 'phone'
-                      ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Phone className="w-4 h-4" />
-                  <span>{t.mobilePhone}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setMethod('phone')}
+                    className={`p-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                      method === 'phone'
+                        ? 'border-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>{t.mobilePhone}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 
+                {/* 1. Profile Picture Avatar Selector (PROMINENTLY AT THE TOP OF SIGNUP) */}
+                {authMode === 'signup' && (
+                  <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          <span>{language === 'bn' ? 'প্রোফাইল ছবি নির্বাচন করুন' : 'Select Profile Picture'} *</span>
+                        </span>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          {language === 'bn' ? 'ছবি আপলোড করুন অথবা নিচের অ্যাভাটার বেছে নিন' : 'Upload your photo or choose an avatar below'}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-all hover:scale-105"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{language === 'bn' ? 'ছবি আপলোড' : 'Upload Photo'}</span>
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                    </div>
+
+                    {/* Active Selected Photo Preview with Camera overlay */}
+                    <div className="flex items-center gap-3">
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden ring-3 ring-indigo-600 shadow-md cursor-pointer group shrink-0"
+                        title={language === 'bn' ? 'ছবি পরিবর্তন করতে ক্লিক করুন' : 'Click to change photo'}
+                      >
+                        <img
+                          src={selectedAvatar}
+                          alt="Selected Avatar"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                          <Camera className="w-4 h-4" />
+                          <span className="text-[9px] font-bold">{language === 'bn' ? 'বদলান' : 'Edit'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            {isCustomPhoto 
+                              ? (language === 'bn' ? 'নিজস্ব ছবি যুক্ত হয়েছে ✅' : 'Custom Photo Uploaded ✅')
+                              : (language === 'bn' ? 'ক্যাম্পাস অ্যাভাটার নির্বাচিত' : 'Preset Avatar Selected')}
+                          </span>
+                        </div>
+                        
+                        {/* 6 Quick Preset Avatars */}
+                        <div className="flex items-center gap-1.5 mt-1.5 overflow-x-auto pb-0.5">
+                          {presetAvatars.map((av, idx) => {
+                            const isSelected = !isCustomPhoto && selectedAvatar === av.url;
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAvatar(av.url);
+                                  setIsCustomPhoto(false);
+                                }}
+                                className={`relative rounded-full overflow-hidden w-8 h-8 sm:w-9 sm:h-9 border-2 transition-all cursor-pointer shrink-0 ${
+                                  isSelected
+                                    ? 'border-indigo-600 ring-2 ring-indigo-500 scale-110 shadow-sm'
+                                    : 'border-slate-200 dark:border-slate-700 opacity-70 hover:opacity-100 hover:scale-105'
+                                }`}
+                                title={av.label}
+                              >
+                                <img
+                                  src={av.url}
+                                  alt={av.label}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                                {isSelected && (
+                                  <div className="absolute inset-0 bg-indigo-600/40 flex items-center justify-center">
+                                    <Check className="w-3 h-3 text-white stroke-[3]" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Full Name for Signup */}
                 {authMode === 'signup' && (
                   <div>
@@ -696,47 +829,6 @@ export const AuthModal: React.FC = () => {
                         </select>
                       </div>
                     </div>
-
-                    {/* Profile Picture Avatar Selector */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                          {language === 'bn' ? 'প্রোফাইল ছবি (আমার ছবি / অ্যাভাটার)' : 'Profile Picture (My Picture / Avatars)'}
-                        </label>
-                        <label className="cursor-pointer text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
-                          <Upload className="w-3 h-3" />
-                          <span>{t.uploadMyPhoto}</span>
-                          <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                        </label>
-                      </div>
-
-                      <div className="grid grid-cols-6 gap-2 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 items-center">
-                        {presetAvatars.map((av, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => setSelectedAvatar(av.url)}
-                            className={`relative rounded-xl overflow-hidden cursor-pointer aspect-square border-2 transition-all ${
-                              selectedAvatar === av.url
-                                ? 'border-indigo-600 ring-2 ring-indigo-500/40 scale-105'
-                                : 'border-transparent opacity-70 hover:opacity-100'
-                            }`}
-                            title={av.label}
-                          >
-                            <img 
-                              src={av.url} 
-                              alt={av.label} 
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover" 
-                            />
-                            {selectedAvatar === av.url && (
-                              <div className="absolute inset-0 bg-indigo-600/30 flex items-center justify-center">
-                                <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </>
                 )}
 
@@ -762,33 +854,43 @@ export const AuthModal: React.FC = () => {
             </>
           )}
 
-          {/* Quick Demo Switcher for Testing Classmate Personas */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-bold flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" />
-                <span>{language === 'bn' ? 'সহপাঠী প্রোফাইল সুইচ করুন:' : 'Quick Classmate Switcher:'}</span>
-              </span>
-              <span className="text-[10px]">{language === 'bn' ? 'যেকোনো সহপাঠীতে ক্লিক করুন' : 'Click any classmate'}</span>
-            </div>
+          {/* Quick Demo Switcher for Testing Classmate Personas - ONLY IN SIGNIN MODE */}
+          {authMode === 'signin' && (
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span className="font-bold flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>{language === 'bn' ? 'সহপাঠী প্রোফাইল সুইচ করুন:' : 'Quick Classmate Switcher:'}</span>
+                </span>
+                <span className="text-[10px]">{language === 'bn' ? 'যেকোনো সহপাঠীতে ক্লিক করুন' : 'Click any classmate'}</span>
+              </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {users.slice(0, 5).map((u) => (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 <button
-                  key={u.id}
                   type="button"
-                  onClick={() => {
-                    switchUserPersona(u.id);
-                    setIsAuthModalOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-slate-800 dark:text-slate-200 text-xs font-semibold shrink-0 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                  onClick={handleCadetDemoLogin}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 text-xs font-bold shrink-0 border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer"
                 >
-                  <img src={u.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                  <span>{u.name.split(' ')[0]}</span>
+                  <img src={rakibulAvatar} alt="" className="w-5 h-5 rounded-full object-cover ring-1 ring-indigo-500" />
+                  <span>Rakibul (Cadet)</span>
                 </button>
-              ))}
+                {users.filter(u => u.id !== 'usr_1').slice(0, 4).map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => {
+                      switchUserPersona(u.id);
+                      setIsAuthModalOpen(false);
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-slate-800 dark:text-slate-200 text-xs font-semibold shrink-0 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                  >
+                    <img src={u.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    <span>{u.name.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
 

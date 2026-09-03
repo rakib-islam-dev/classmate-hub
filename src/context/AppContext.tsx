@@ -230,7 +230,7 @@ interface AppContextType {
     bio?: string;
     currentStudyFocus?: string;
     interests?: string[];
-  }) => void;
+  }) => { success: boolean; message: string };
   toastMessage: ToastInfo | null;
   showToast: (title: string, desc: string, type?: 'success' | 'info' | 'call') => void;
 }
@@ -1349,8 +1349,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateUserProfile = (profile: Partial<User>) => {
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, ...profile } : u));
-    showToast('Profile Updated', 'Your profile and credentials have been updated.', 'success');
+    let updatedUser: User | null = null;
+    setUsers(prev => prev.map(u => {
+      if (u.id === currentUser.id) {
+        updatedUser = { ...u, ...profile };
+        return updatedUser;
+      }
+      return u;
+    }));
+
+    if (updatedUser) {
+      try {
+        setDoc(doc(db, 'users', currentUser.id), updatedUser, { merge: true }).catch(err => {
+          console.warn('Firestore user update error:', err);
+        });
+      } catch (e) {
+        console.warn('Firestore setDoc notice:', e);
+      }
+    }
+
+    showToast(
+      language === 'bn' ? 'প্রোফাইল আপডেট হয়েছে' : 'Profile Updated',
+      language === 'bn' ? 'আপনার প্রোফাইল ও ছবি ক্লাউডে সংরক্ষিত হয়েছে।' : 'Your profile and photo have been updated.',
+      'success'
+    );
   };
 
   const updateUserStatus = (status: AcademicStatus, focus?: string) => {
@@ -1373,7 +1395,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const loginWithCredentials = (method: 'google' | 'phone' | 'username' | 'password', identifier: string, password?: string): { success: boolean; message: string } => {
+  const loginWithCredentials = (_method: 'google' | 'phone' | 'username' | 'password', identifier: string, password?: string): { success: boolean; message: string } => {
     const cleanId = identifier.trim().replace('@', '').toLowerCase();
     
     const matched = users.find(u => 
@@ -1404,52 +1426,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: true, message: 'Signed in successfully' };
     }
 
-    // Auto-create student
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      name: identifier.includes('@') ? identifier.split('@')[0].replace('.', ' ') : identifier,
-      username: cleanId,
-      password: password || 'password123',
-      gender: 'male',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
-      email: identifier.includes('@') ? identifier : `${cleanId}@gmail.com`,
-      phone: method === 'phone' ? identifier : '+880 1700 112233',
-      department: 'Science (বিজ্ঞান বিভাগ)',
-      semester: 'SSC 2027 Batch (Class 10)',
-      university: 'Quantum Cosmo School, Lama, Bandarban',
-      cgpa: 'GPA 5.00',
-      bio: 'Enthusiastic Quantum Cosmo School SSC 2027 student eager to learn and share notes.',
-      status: 'online',
-      currentStudyFocus: 'SSC 2027 Exam Prep & Study Squads',
-      interests: ['Physics', 'Higher Math', 'SSC Prep', 'ICT'],
-      verified: true,
-      tradesCompleted: 0,
-      rating: 5.0,
-      joinedDate: 'Batch 2027'
-    };
-    setUsers(prev => [newUser, ...prev]);
-    setCurrentUserId(newUser.id);
-    setIsLoggedIn(true);
-    localStorage.setItem('classmate_is_logged_in', 'true');
-    localStorage.setItem('classmate_current_user_id', newUser.id);
-    setIsAuthModalOpen(false);
-    setActiveTabState('feed');
-
-    // Persist student account to Cloud Firestore so classmates on other devices can see & chat
-    try {
-      setDoc(doc(db, 'users', newUser.id), newUser, { merge: true }).catch(err => {
-        console.warn('Firestore user registration sync error:', err);
-      });
-    } catch (e) {
-      console.warn('Firestore setDoc notice:', e);
-    }
-
-    showToast(
-      language === 'bn' ? 'নতুন আইডি তৈরি হয়েছে' : 'Signed In',
-      `Welcome to ClassMate, ${newUser.name}!`,
-      'success'
-    );
-    return { success: true, message: 'Account created and logged in' };
+    // Account not found - prompt user to register
+    const notFoundMsg = language === 'bn' 
+      ? `"${identifier}" দিয়ে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। অনুগ্রহ করে "নতুন অ্যাকাউন্ট তৈরি" অপশনটি ব্যবহার করুন।` 
+      : `No account found for "${identifier}". Please create an account first.`;
+    showToast(language === 'bn' ? 'অ্যাকাউন্ট পাওয়া যায়নি' : 'Account Not Found', notFoundMsg, 'info');
+    return { success: false, message: notFoundMsg };
   };
 
   const createAccount = (payload: {
@@ -1468,31 +1450,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     bio?: string;
     currentStudyFocus?: string;
     interests?: string[];
-  }) => {
+  }): { success: boolean; message: string } => {
+    // Strict Validation: Cannot create an account without proper name, identifier and password
+    if (!payload.name || payload.name.trim().length < 2) {
+      const errorMsg = language === 'bn' ? 'অনুগ্রহ করে শিক্ষার্থীর সম্পূর্ণ নাম লিখুন (কমপক্ষে ২ অক্ষর)।' : 'Please provide the student full name (at least 2 characters).';
+      showToast(language === 'bn' ? 'নাম আবশ্যক' : 'Name Required', errorMsg, 'info');
+      return { success: false, message: errorMsg };
+    }
+
+    if (!payload.identifier || payload.identifier.trim().length < 3) {
+      const errorMsg = language === 'bn' ? 'অনুগ্রহ করে সঠিক ইমেইল, ইউজারনেম বা মোবাইল নম্বর দিন।' : 'Please provide a valid email, username, or phone number.';
+      showToast(language === 'bn' ? 'তথ্য অসম্পূর্ণ' : 'Incomplete Credentials', errorMsg, 'info');
+      return { success: false, message: errorMsg };
+    }
+
+    if (!payload.password || payload.password.trim().length < 4) {
+      const errorMsg = language === 'bn' ? 'কমপক্ষে ৪ অক্ষরের পাসওয়ার্ড আবশ্যক।' : 'Password must be at least 4 characters.';
+      showToast(language === 'bn' ? 'পাসওয়ার্ড প্রয়োজন' : 'Password Required', errorMsg, 'info');
+      return { success: false, message: errorMsg };
+    }
+
     const cleanUsername = payload.username 
       ? payload.username.replace('@', '').trim().toLowerCase() 
       : (payload.email ? payload.email.split('@')[0] : payload.name.toLowerCase().replace(/\s+/g, '_'));
 
-    const cleanEmail = payload.email?.trim() || (payload.method === 'google' ? payload.identifier : `${cleanUsername}@gmail.com`);
+    const cleanEmail = payload.email?.trim().toLowerCase() || (payload.method === 'google' ? payload.identifier.toLowerCase() : `${cleanUsername}@gmail.com`);
 
-    const matched = users.find(u => 
-      (cleanEmail && u.email.toLowerCase() === cleanEmail.toLowerCase()) ||
+    // Check if account already exists
+    const duplicate = users.find(u => 
+      (cleanEmail && u.email.toLowerCase() === cleanEmail) ||
       (cleanUsername && u.username && u.username.toLowerCase() === cleanUsername)
     );
 
-    if (matched) {
-      setCurrentUserId(matched.id);
-      setIsLoggedIn(true);
-      localStorage.setItem('classmate_is_logged_in', 'true');
-      localStorage.setItem('classmate_current_user_id', matched.id);
-      setIsAuthModalOpen(false);
-      setActiveTabState('feed');
+    if (duplicate) {
+      const errorMsg = language === 'bn' 
+        ? `এই ইমেইল (${cleanEmail}) বা ইউজারনেম (@${cleanUsername}) দিয়ে ইতিমধ্যে অ্যাকাউন্ট তৈরি আছে! দয়া করে সাইন ইন করুন।` 
+        : `An account with this email (${cleanEmail}) or username (@${cleanUsername}) already exists. Please sign in instead.`;
       showToast(
-        language === 'bn' ? 'আইডি পাওয়া গেছে' : 'Account Found', 
-        `Logged in as existing student ${matched.name}.`, 
+        language === 'bn' ? 'অ্যাকাউন্ট ইতিমধ্যে বিদ্যমান' : 'Account Already Exists', 
+        errorMsg, 
         'info'
       );
-      return;
+      return { success: false, message: errorMsg };
     }
 
     const defaultAvatar = payload.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80';
@@ -1545,6 +1544,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       `Welcome to ClassMate, ${newUser.name}! Your campus profile is active.`, 
       'success'
     );
+    return { success: true, message: 'Student account created successfully' };
   };
 
   // Marketplace Actions
