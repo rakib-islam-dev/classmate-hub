@@ -13,7 +13,8 @@ import {
   Search,
   LogIn,
   LogOut,
-  UserCheck
+  UserCheck,
+  Wifi
 } from 'lucide-react';
 import { CampusPhotoModal } from './CampusPhotoModal';
 
@@ -62,9 +63,13 @@ export const Navbar: React.FC = () => {
                 <span className="text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80">
                   SSC 2027
                 </span>
+                <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Connected to Real-time Internet Cloud Database">
+                  <Wifi className="w-2.5 h-2.5 text-emerald-500 animate-pulse" />
+                  <span className="hidden sm:inline">LIVE</span>
+                </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:block">
-                Quantum Cosmo School
+                Quantum Cosmo School • ক্লাউড নেটওয়ার্ক
               </p>
             </div>
           </div>

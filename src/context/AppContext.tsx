@@ -42,6 +42,15 @@ import { computeSha256Digest } from '../utils/crypto';
 import { Language, translations, Translations } from '../utils/translations';
 import { soundManager } from '../utils/audioFX';
 import defaultSchoolCampusImage from '../assets/images/school_campus_aerial_1788088291861.jpg';
+import { db } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  query, 
+  limit 
+} from 'firebase/firestore';
 
 interface ToastInfo {
   title: string;
@@ -720,6 +729,83 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('classmate_direct_messages', JSON.stringify(directMessages));
   }, [directMessages]);
 
+  // Real-time Cloud Database Listeners (Internet multi-user sync)
+  useEffect(() => {
+    // 1. Sync registered students across the internet
+    const usersQuery = query(collection(db, 'users'), limit(500));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const cloudUsers: User[] = [];
+        snapshot.forEach((doc) => {
+          cloudUsers.push(doc.data() as User);
+        });
+        setUsers(prevLocal => {
+          const map = new Map<string, User>();
+          prevLocal.forEach(u => map.set(u.id, u));
+          cloudUsers.forEach(u => map.set(u.id, { ...(map.get(u.id) || {}), ...u }));
+          return Array.from(map.values());
+        });
+      }
+    }, (err) => {
+      console.warn('Firestore users sync notice:', err);
+    });
+
+    // 2. Sync direct messages across the internet
+    const dmQuery = query(collection(db, 'direct_messages'), limit(500));
+    const unsubscribeDMs = onSnapshot(dmQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const cloudDMs: DirectMessage[] = [];
+        snapshot.forEach((doc) => {
+          cloudDMs.push(doc.data() as DirectMessage);
+        });
+        setDirectMessages(prev => {
+          const map = new Map<string, DirectMessage>();
+          prev.forEach(m => map.set(m.id, m));
+          cloudDMs.forEach(m => map.set(m.id, m));
+          return Array.from(map.values()).sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime() || 0;
+            const timeB = new Date(b.timestamp).getTime() || 0;
+            return timeA - timeB;
+          });
+        });
+      }
+    }, (err) => {
+      console.warn('Firestore DM sync notice:', err);
+    });
+
+    // 3. Sync campus channel messages across the internet
+    const cmQuery = query(collection(db, 'channel_messages'), limit(500));
+    const unsubscribeCMs = onSnapshot(cmQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const grouped: { [channelId: string]: ChannelMessage[] } = {};
+        snapshot.forEach((doc) => {
+          const msg = doc.data() as ChannelMessage;
+          if (!grouped[msg.channelId]) grouped[msg.channelId] = [];
+          grouped[msg.channelId].push(msg);
+        });
+        setChannelMessages(prev => {
+          const next = { ...prev };
+          Object.keys(grouped).forEach(cId => {
+            const existing = next[cId] || [];
+            const map = new Map<string, ChannelMessage>();
+            existing.forEach(m => map.set(m.id, m));
+            grouped[cId].forEach(m => map.set(m.id, m));
+            next[cId] = Array.from(map.values());
+          });
+          return next;
+        });
+      }
+    }, (err) => {
+      console.warn('Firestore channel messages sync notice:', err);
+    });
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeDMs();
+      unsubscribeCMs();
+    };
+  }, []);
+
   // Feed State
   const [posts, setPosts] = useState<DiscussionPost[]>(mockDiscussionPosts);
 
@@ -1348,6 +1434,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('classmate_current_user_id', newUser.id);
     setIsAuthModalOpen(false);
     setActiveTabState('feed');
+
+    // Persist student account to Cloud Firestore so classmates on other devices can see & chat
+    try {
+      setDoc(doc(db, 'users', newUser.id), newUser, { merge: true }).catch(err => {
+        console.warn('Firestore user registration sync error:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore setDoc notice:', e);
+    }
+
     showToast(
       language === 'bn' ? 'নতুন আইডি তৈরি হয়েছে' : 'Signed In',
       `Welcome to ClassMate, ${newUser.name}!`,
@@ -1434,6 +1530,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('classmate_current_user_id', newUser.id);
     setIsAuthModalOpen(false);
     setActiveTabState('feed');
+
+    // Persist new student account to Cloud Firestore
+    try {
+      setDoc(doc(db, 'users', newUser.id), newUser, { merge: true }).catch(err => {
+        console.warn('Firestore createAccount sync error:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore setDoc notice:', e);
+    }
+
     showToast(
       language === 'bn' ? 'স্টুডেন্ট অ্যাকাউন্ট তৈরি হয়েছে! 🎉' : 'Student Account Created! 🎉', 
       `Welcome to ClassMate, ${newUser.name}! Your campus profile is active.`, 
@@ -1495,21 +1601,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setDirectMessages(prev => [...prev, newMsg]);
 
+    // Persist Direct Message to Cloud Firestore
+    try {
+      setDoc(doc(db, 'direct_messages', newMsg.id), newMsg).catch(err => {
+        console.warn('Firestore sendDirectMessage error:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore setDoc notice:', e);
+    }
+
     if (receiverId !== currentUser.id) {
       const peer = users.find(u => u.id === receiverId);
-      setTimeout(() => {
-        const replyMsg: DirectMessage = {
-          id: `msg_reply_${Date.now()}`,
-          senderId: receiverId,
-          receiverId: currentUser.id,
-          content: voiceAudioUrl ? `ভয়েস মেসেজ পেয়েছি! খুব সুন্দর শোনাচ্ছে।` : `Got your message! Let's collaborate.`,
-          timestamp: 'Just now',
-          encrypted: true,
-          read: false
-        };
-        setDirectMessages(prev => [...prev, replyMsg]);
-        showToast(`New message from ${peer?.name || 'Classmate'}`, 'Encrypted peer reply received', 'info');
-      }, 3000);
+      // If the peer is an offline mock bot, provide a gentle auto reply
+      if (peer && ['usr_1', 'usr_2', 'usr_3', 'usr_4', 'usr_5', 'usr_6'].includes(peer.id)) {
+        setTimeout(() => {
+          const replyMsg: DirectMessage = {
+            id: `msg_reply_${Date.now()}`,
+            senderId: receiverId,
+            receiverId: currentUser.id,
+            content: voiceAudioUrl ? `ভয়েস মেসেজ পেয়েছি! খুব সুন্দর শোনাচ্ছে।` : `Got your message! Let's collaborate.`,
+            timestamp: 'Just now',
+            encrypted: true,
+            read: false
+          };
+          setDirectMessages(prev => [...prev, replyMsg]);
+          try {
+            setDoc(doc(db, 'direct_messages', replyMsg.id), replyMsg).catch(() => {});
+          } catch {}
+          showToast(`New message from ${peer?.name || 'Classmate'}`, 'Encrypted peer reply received', 'info');
+        }, 3000);
+      }
     }
   };
 
@@ -1539,6 +1660,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...prev,
       [channelId]: [...(prev[channelId] || []), newMsg]
     }));
+
+    // Persist Channel Message to Cloud Firestore
+    try {
+      setDoc(doc(db, 'channel_messages', newMsg.id), newMsg).catch(err => {
+        console.warn('Firestore sendChannelMessage error:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore setDoc notice:', e);
+    }
 
     setChannels(prev => prev.map(c => c.id === channelId ? {
       ...c,
