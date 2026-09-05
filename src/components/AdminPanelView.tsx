@@ -19,7 +19,9 @@ import {
   Lock, 
   Radio,
   Sliders,
-  X
+  X,
+  KeyRound,
+  HelpCircle
 } from 'lucide-react';
 
 export const AdminPanelView: React.FC = () => {
@@ -30,6 +32,10 @@ export const AdminPanelView: React.FC = () => {
     deleteUser, 
     banUser, 
     toggleUserVerification,
+    adminResetUserPassword,
+    resetPassword,
+    helpTickets,
+    resolveHelpTicket,
     marketplaceItems, 
     deleteMarketplaceItem, 
     posts, 
@@ -47,7 +53,8 @@ export const AdminPanelView: React.FC = () => {
     language
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'marketplace' | 'feed' | 'channels' | 'vault' | 'settings' | 'logs'>('users');
+  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'tickets' | 'marketplace' | 'feed' | 'channels' | 'vault' | 'settings' | 'logs'>('users');
+  const [ticketReplyText, setTicketReplyText] = useState<{ [id: string]: string }>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'super_admin' | 'admin' | 'moderator' | 'student'>('all');
   
@@ -233,6 +240,21 @@ export const AdminPanelView: React.FC = () => {
           <span>{language === 'bn' ? 'ব্যবহারকারী ও রোল ম্যানেজমেন্ট' : 'User Governance & Roles'}</span>
           <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black">
             {users.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('tickets')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm whitespace-nowrap transition-all shadow-xs cursor-pointer ${
+            activeAdminTab === 'tickets'
+              ? 'bg-amber-600 text-white shadow-amber-500/20'
+              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <HelpCircle className="w-4 h-4 text-amber-400" />
+          <span>{language === 'bn' ? 'হেল্প ও পাসওয়ার্ড টিকিট' : 'Help & Password Tickets'}</span>
+          <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-black">
+            {helpTickets.filter(t => t.status === 'open').length}
           </span>
         </button>
 
@@ -514,6 +536,24 @@ export const AdminPanelView: React.FC = () => {
                         </button>
                       )}
 
+                      {/* Password Reset by Admin via Firebase Auth */}
+                      <button
+                        onClick={async () => {
+                          const confirmReset = window.confirm(
+                            language === 'bn'
+                              ? `${user.name} (${user.email})-এর জন্য অফিসিয়াল Firebase Authentication পাসওয়ার্ড রিসেট ইমেইল পাঠাতে চান?`
+                              : `Dispatch secure Firebase Authentication password reset link to ${user.name} (${user.email})?`
+                          );
+                          if (confirmReset) {
+                            await adminResetUserPassword(user.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-all cursor-pointer"
+                        title={language === 'bn' ? 'Firebase Auth পাসওয়ার্ড রিসেট লিংক পাঠান' : 'Send Firebase Auth Reset Link'}
+                      >
+                        <KeyRound className="w-4 h-4" />
+                      </button>
+
                       {/* Delete User Button */}
                       {!isImmortal ? (
                         <button
@@ -541,6 +581,170 @@ export const AdminPanelView: React.FC = () => {
             })}
           </div>
 
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SECTION: HELP DESK & PASSWORD RESET TICKETS */}
+      {/* ========================================================================= */}
+      {activeAdminTab === 'tickets' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-amber-500" />
+                <span>{language === 'bn' ? 'হেল্প ডেস্ক ও পাসওয়ার্ড রিসেট ইনবক্স' : 'Help Desk & Password Reset Inbox'}</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {language === 'bn' 
+                  ? 'শিক্ষার্থীদের পাঠানো সমস্যা, ড্রাইভ রিকোয়েস্ট ও পাসওয়ার্ড রিসেট টিকিট ব্যবস্থাপনা করুন।' 
+                  : 'Manage submitted student tickets, access issues, and one-click password resets.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                {helpTickets.filter(t => t.status === 'open').length} {language === 'bn' ? 'অমীমাংসিত' : 'Open'}
+              </span>
+            </div>
+          </div>
+
+          {helpTickets.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400">
+              <HelpCircle className="w-12 h-12 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+              <p className="text-sm font-bold">{language === 'bn' ? 'কোনো অমীমাংসিত হেল্প টিকিট নেই' : 'No support tickets found'}</p>
+              <p className="text-xs">{language === 'bn' ? 'শিক্ষার্থীরা হেল্প আইকন ব্যবহার করলে এখানে জমা হবে।' : 'New tickets submitted via help icon will appear here in real-time.'}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {helpTickets.map(ticket => (
+                <div 
+                  key={ticket.id} 
+                  className={`p-4 rounded-2xl bg-white dark:bg-slate-900 border transition-all ${
+                    ticket.status === 'open' 
+                      ? 'border-amber-400/60 dark:border-amber-700/60 shadow-md' 
+                      : 'border-slate-200 dark:border-slate-800 opacity-80'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={ticket.userAvatar} 
+                        alt="" 
+                        className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-700" 
+                        referrerPolicy="no-referrer" 
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{ticket.userName}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            ticket.category === 'password_reset' 
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700' 
+                              : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                          }`}>
+                            {ticket.category === 'password_reset' ? '🔑 Password' : ticket.category}
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-400 block font-mono">{ticket.userEmail}</span>
+                      </div>
+                    </div>
+
+                    <span className={`self-start sm:self-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                      ticket.status === 'resolved' 
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' 
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700 animate-pulse'
+                    }`}>
+                      {ticket.status === 'resolved' ? '✅ Resolved' : '⏳ Open'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-1">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">{ticket.subject}</h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{ticket.message}</p>
+                    {ticket.voiceAudioUrl && (
+                      <div className="mt-2 p-2 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800 flex items-center gap-2">
+                        <audio src={ticket.voiceAudioUrl} controls className="h-8 max-w-xs" />
+                        <span className="text-[11px] text-cyan-800 dark:text-cyan-300 font-bold">ভয়েস মেসেজ</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {ticket.adminReply && (
+                    <div className="mt-3 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
+                      <span className="font-bold block mb-0.5">অ্যাডমিন উত্তর / সমাধান:</span>
+                      <p>{ticket.adminReply}</p>
+                    </div>
+                  )}
+
+                  {ticket.status === 'open' && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      {ticket.category === 'password_reset' && (
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800">
+                          <span className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                            <KeyRound className="w-4 h-4" />
+                            <span>{language === 'bn' ? 'পাসওয়ার্ড রিসেট রিকোয়েস্ট' : 'Password Reset Request'}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const target = users.find(u => 
+                                u.id === ticket.userId ||
+                                (ticket.userEmail && u.email.toLowerCase() === ticket.userEmail.toLowerCase()) ||
+                                (ticket.message && ticket.message.toLowerCase().includes(u.email.toLowerCase())) ||
+                                u.name.toLowerCase() === ticket.userName.toLowerCase()
+                              );
+                              if (target) {
+                                await adminResetUserPassword(target.id);
+                              } else {
+                                const emailCandidate = ticket.userEmail || (ticket.message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0]);
+                                if (emailCandidate) {
+                                  await resetPassword(emailCandidate);
+                                  resolveHelpTicket(
+                                    ticket.id, 
+                                    language === 'bn' 
+                                      ? `অ্যাডমিন কর্তৃক Firebase Auth পাসওয়ার্ড রিসেট রিকোয়েস্ট অনুমোদিত হয়েছে। ${emailCandidate} ঠিকানায় অফিসিয়াল পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।` 
+                                      : `Admin processed your request. Official Firebase Authentication password reset link dispatched to ${emailCandidate}.`
+                                  );
+                                } else {
+                                  resolveHelpTicket(
+                                    ticket.id, 
+                                    language === 'bn' 
+                                      ? 'আপনার একাউন্টের সঠিক ইমেইল পাওয়া যায়নি। অনুগ্রহ করে নিবন্ধিত ইমেইল প্রদান করে নতুন টিকিট জমা দিন।' 
+                                      : 'No registered email found. Please provide your registered account email.'
+                                  );
+                                }
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-transform active:scale-95"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                            <span>{language === 'bn' ? '🔑 রিসেট লিংক পাঠান' : '🔑 Send Reset Link'}</span>
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={ticketReplyText[ticket.id] || ''}
+                          onChange={e => setTicketReplyText(prev => ({ ...prev, [ticket.id]: e.target.value }))}
+                          placeholder={language === 'bn' ? 'শিক্ষার্থীকে উত্তর বা নতুন পাসওয়ার্ড লিখে সমাধান করুন...' : 'Write reply or resolution message...'}
+                          className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-hidden focus:border-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => resolveHelpTicket(ticket.id, ticketReplyText[ticket.id])}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{language === 'bn' ? 'সমাধান' : 'Resolve'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

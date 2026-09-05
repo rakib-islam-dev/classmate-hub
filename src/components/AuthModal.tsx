@@ -17,7 +17,6 @@ import {
   Eye,
   EyeOff,
   HelpCircle,
-  RotateCcw,
   Camera
 } from 'lucide-react';
 import { rakibulAvatar } from '../data/mockData';
@@ -27,6 +26,7 @@ export const AuthModal: React.FC = () => {
   const { 
     isAuthModalOpen, 
     setIsAuthModalOpen, 
+    setIsHelpModalOpen,
     loginWithCredentials, 
     createAccount, 
     resetPassword,
@@ -52,11 +52,8 @@ export const AuthModal: React.FC = () => {
   const [passwordInput, setPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
-  // Forgot password specific fields
-  const [forgotIdentifier, setForgotIdentifier] = useState('');
-  const [forgotNewPassword, setForgotNewPassword] = useState('');
-  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Academic Fields for Signup
   const [department, setDepartment] = useState('Science (বিজ্ঞান বিভাগ)');
@@ -138,41 +135,30 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotIdentifier.trim()) {
+    if (!forgotEmail.trim()) {
       showToast(
-        language === 'bn' ? 'তথ্য প্রয়োজন' : 'Identifier Required',
-        language === 'bn' ? 'আপনার নিবন্ধিত ইমেইল, ইউজারনেম বা মোবাইল নম্বর দিন।' : 'Please enter your registered email, username, or phone.',
+        language === 'bn' ? 'ইমেইল আবশ্যক' : 'Email Required',
+        language === 'bn' ? 'অনুগ্রহ করে আপনার নিবন্ধিত ইমেইল ঠিকানা দিন।' : 'Please enter your registered email address.',
         'info'
       );
       return;
     }
-    if (!forgotNewPassword.trim() || forgotNewPassword.length < 4) {
-      showToast(
-        language === 'bn' ? 'নতুন পাসওয়ার্ড লিখুন' : 'New Password Required',
-        language === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।' : 'Password must be at least 4 characters long.',
-        'info'
-      );
-      return;
-    }
-    if (forgotNewPassword !== forgotConfirmPassword) {
-      showToast(
-        language === 'bn' ? 'পাসওয়ার্ড মেলেনি' : 'Passwords Mismatch',
-        language === 'bn' ? 'নতুন পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড একই হতে হবে।' : 'New password and confirmation do not match.',
-        'info'
-      );
-      return;
-    }
-
-    const res = resetPassword(forgotIdentifier, forgotNewPassword);
-    if (res.success) {
-      setAuthMode('signin');
+    setIsLoading(true);
+    try {
+      const res = await resetPassword(forgotEmail.trim());
+      if (res.success) {
+        setForgotEmail('');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
 
     const fullPhoneNumber = `${countryCode} ${phoneDigits.trim()}`;
 
@@ -201,7 +187,12 @@ export const AuthModal: React.FC = () => {
         return;
       }
 
-      loginWithCredentials(method, identifier, passwordInput.trim());
+      setIsLoading(true);
+      try {
+        await loginWithCredentials(method, identifier, passwordInput.trim());
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
@@ -251,10 +242,10 @@ export const AuthModal: React.FC = () => {
       primaryIdentifier = fullPhoneNumber;
     }
 
-    if (!passwordInput.trim() || passwordInput.trim().length < 4) {
+    if (!passwordInput.trim() || passwordInput.trim().length < 6) {
       showToast(
         language === 'bn' ? 'পাসওয়ার্ড সেট করুন' : 'Password Required',
-        language === 'bn' ? 'কমপক্ষে ৪ অক্ষরের একটি নিরাপদ পাসওয়ার্ড লিখুন।' : 'Password must be at least 4 characters long.',
+        language === 'bn' ? 'কমপক্ষে ৬ অক্ষরের একটি নিরাপদ পাসওয়ার্ড লিখুন (Firebase Auth মানদণ্ড)।' : 'Password must be at least 6 characters long (Firebase Auth standard).',
         'info'
       );
       return;
@@ -277,30 +268,35 @@ export const AuthModal: React.FC = () => {
       ? emailInput.trim().toLowerCase()
       : `${cleanUsername}@gmail.com`;
 
-    const res = createAccount({
-      name: fullName.trim(),
-      method,
-      identifier: primaryIdentifier,
-      password: passwordInput.trim(),
-      email: cleanEmail,
-      username: cleanUsername,
-      phone: method === 'phone' ? primaryIdentifier : '+880 1700 998877',
-      department,
-      semester,
-      university: 'Quantum Cosmo School, Lama, Bandarban',
-      avatar: selectedAvatar,
-      bio: `Quantum Cosmo School SSC 2027 student member (${department}). Dedicated to board exam prep, test papers, and note sharing.`,
-      currentStudyFocus: `SSC 2027 ${department.split(' ')[0]} Preparation & Study Squad`,
-      interests: [department.split(' ')[0], 'SSC 2027', 'CQ/MCQ Solving', 'Notes Sharing']
-    });
+    setIsLoading(true);
+    try {
+      const res = await createAccount({
+        name: fullName.trim(),
+        method,
+        identifier: primaryIdentifier,
+        password: passwordInput.trim(),
+        email: cleanEmail,
+        username: cleanUsername,
+        phone: method === 'phone' ? primaryIdentifier : '+880 1700 998877',
+        department,
+        semester,
+        university: 'Quantum Cosmo School, Lama, Bandarban',
+        avatar: selectedAvatar,
+        bio: `Quantum Cosmo School SSC 2027 student member (${department}). Dedicated to board exam prep, test papers, and note sharing.`,
+        currentStudyFocus: `SSC 2027 ${department.split(' ')[0]} Preparation & Study Squad`,
+        interests: [department.split(' ')[0], 'SSC 2027', 'CQ/MCQ Solving', 'Notes Sharing']
+      });
 
-    if (res && res.success) {
-      setFullName('');
-      setEmailInput('');
-      setUsernameInput('');
-      setPhoneDigits('');
-      setPasswordInput('');
-      setConfirmPasswordInput('');
+      if (res && res.success) {
+        setFullName('');
+        setEmailInput('');
+        setUsernameInput('');
+        setPhoneDigits('');
+        setPasswordInput('');
+        setConfirmPasswordInput('');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -389,87 +385,79 @@ export const AuthModal: React.FC = () => {
             </button>
           </div>
 
-          {/* FORGOT PASSWORD SPECIFIC FORM */}
+          {/* FORGOT PASSWORD SPECIFIC INSTRUCTION & DIRECT NOTIFICATION TO ADMIN */}
           {authMode === 'forgot' ? (
-            <form onSubmit={handleForgotSubmit} className="space-y-4 animate-fade-in">
-              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                <p className="font-bold flex items-center gap-1.5">
-                  <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>{language === 'bn' ? 'পাসওয়ার্ড পুনরুদ্ধার ও রিসেট' : 'Instant Password Recovery & Reset'}</span>
-                </p>
-                <p className="text-[11px] text-amber-800/90 dark:text-amber-300/80">
+            <div className="space-y-4 animate-fade-in">
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 space-y-2.5">
+                <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-amber-800 dark:text-amber-300">
+                  <KeyRound className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>{language === 'bn' ? 'Firebase Authentication পাসওয়ার্ড রিসেট' : 'Firebase Auth Password Reset'}</span>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
                   {language === 'bn' 
-                    ? 'আপনার অ্যাকাউন্টের ইমেইল, ইউজারনেম বা ফোন নম্বর দিন এবং সরাসরি নতুন পাসওয়ার্ড সেট করুন।' 
-                    : 'Enter your registered email, username, or phone number and define a new secure password.'}
+                    ? 'আপনার নিবন্ধিত ইমেইল বা ইউজারনেম দিন। Firebase Authentication-এর মাধ্যমে আপনার ইনবক্সে একটি অফিসিয়াল পাসওয়ার্ড রিসেট লিংক পাঠানো হবে।' 
+                    : 'Enter your registered email address. A secure reset link will be dispatched to your inbox via Firebase Authentication.'}
                 </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {language === 'bn' ? 'ইমেইল / ইউজারনেম / মোবাইল নম্বর' : 'Email / Username / Mobile Phone'} *
-                </label>
-                <div className="relative">
-                  <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    value={forgotIdentifier}
-                    onChange={(e) => setForgotIdentifier(e.target.value)}
-                    placeholder="e.g. rakibulislamq1673@gmail.com, rakibul_cse, +8801711223344"
-                    className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-hidden focus:border-amber-500"
-                  />
+              {/* Direct Firebase Reset Form */}
+              <form onSubmit={handleForgotSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    {language === 'bn' ? 'নিবন্ধিত ইমেইল ঠিকানা' : 'Registered Email Address'} *
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="student@gmail.com"
+                      className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-hidden focus:border-amber-500"
+                    />
+                  </div>
                 </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>{isLoading ? (language === 'bn' ? 'পাঠানো হচ্ছে...' : 'Sending...') : (language === 'bn' ? 'রিসেট লিংক পাঠান' : 'Send Reset Link')}</span>
+                </button>
+              </form>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+                <span className="flex-shrink mx-2 text-[10px] text-slate-400 uppercase font-bold">{language === 'bn' ? 'অথবা' : 'OR'}</span>
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {t.newPassword} *
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-9 pr-10 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-hidden focus:border-amber-500 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {t.confirmPassword} *
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={forgotConfirmPassword}
-                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-9 pr-3 py-2.5 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-hidden focus:border-amber-500 font-mono"
-                  />
-                </div>
-              </div>
-
+              {/* Direct Help Icon Trigger Button */}
               <button
-                type="submit"
-                className="w-full py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setIsAuthModalOpen(false);
+                  setIsHelpModalOpen(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>{language === 'bn' ? 'পাসওয়ার্ড রিসেট করুন ও লগইন করুন' : 'Reset Password & Sign In'}</span>
+                <HelpCircle className="w-4 h-4 text-amber-500" />
+                <span>{language === 'bn' ? '📩 হেল্প ডেস্কে অ্যাডমিনকে জানান' : '📩 Contact Campus Help Desk'}</span>
               </button>
-            </form>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signin')}
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  {language === 'bn' ? '← সাইন ইন পেজে ফিরে যান' : '← Back to Sign In'}
+                </button>
+              </div>
+            </div>
           ) : (
             <>
               {/* Choice of Signin/Signup Method: Gmail vs Username vs Mobile Phone */}
@@ -749,10 +737,15 @@ export const AuthModal: React.FC = () => {
                     {authMode === 'signin' && (
                       <button
                         type="button"
-                        onClick={() => setAuthMode('forgot')}
-                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        onClick={() => {
+                          setIsAuthModalOpen(false);
+                          setIsHelpModalOpen(true);
+                        }}
+                        className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-1"
+                        title={language === 'bn' ? 'পাসওয়ার্ড ভুলে গেলে হেল্প আইকনের মাধ্যমে আগে অ্যাডমিনকে জানাতে হবে' : 'Notify admin via Help Icon to reset password'}
                       >
-                        {t.forgotPassword}
+                        <HelpCircle className="w-3 h-3 text-amber-500" />
+                        <span>{language === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন? (অ্যাডমিনকে জানান)' : 'Forgot Password? (Help Desk)'}</span>
                       </button>
                     )}
                   </div>
@@ -841,10 +834,13 @@ export const AuthModal: React.FC = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   <span>
-                    {authMode === 'signup' 
+                    {isLoading ? (
+                      language === 'bn' ? 'যাচাই করা হচ্ছে...' : 'Authenticating...'
+                    ) : authMode === 'signup' 
                       ? (language === 'bn' ? 'অ্যাকাউন্ট তৈরি করুন ও যোগ দিন' : 'Create Classmate Account & Join Campus') 
                       : (language === 'bn' ? 'ক্যাম্পাস হাবে সাইন ইন করুন' : 'Sign In to Campus Hub')}
                   </span>

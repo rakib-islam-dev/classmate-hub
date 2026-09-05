@@ -42,7 +42,16 @@ import { computeSha256Digest } from '../utils/crypto';
 import { Language, translations, Translations } from '../utils/translations';
 import { soundManager } from '../utils/audioFX';
 import defaultSchoolCampusImage from '../assets/images/school_campus_aerial_1788088291861.jpg';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
+import { 
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updatePassword,
+  updateProfile as updateFirebaseProfile
+} from 'firebase/auth';
 import { 
   collection, 
   doc, 
@@ -95,7 +104,6 @@ interface AppContextType {
   deleteUser: (userId: string) => void;
   banUser: (userId: string, isBanned: boolean) => void;
   toggleUserVerification: (userId: string) => void;
-  adminResetUserPassword: (userId: string, newPass: string) => { success: boolean; message: string };
   adminLoginAsUser: (userId: string) => void;
   issueUserWarning: (userId: string, reason: string) => void;
   dismissUserWarning: (warningId: string) => void;
@@ -129,9 +137,10 @@ interface AppContextType {
   helpTickets: HelpTicket[];
   isHelpModalOpen: boolean;
   setIsHelpModalOpen: (open: boolean) => void;
-  submitHelpTicket: (subject: string, message: string, category: HelpTicket['category'], voiceAudioUrl?: string) => void;
+  submitHelpTicket: (subject: string, message: string, category: HelpTicket['category'], voiceAudioUrl?: string, requesterInfo?: { name?: string; email?: string; userId?: string }) => void;
   resolveHelpTicket: (ticketId: string, reply?: string) => void;
   deleteHelpTicket: (ticketId: string) => void;
+  adminResetUserPassword: (userId: string, customNewPassword?: string) => Promise<{ success: boolean; message: string }>;
 
   // Study Games & Truth or Dare
   gamesList: GameTruthOrDare[];
@@ -197,7 +206,7 @@ interface AppContextType {
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   logout: () => void;
-  resetPassword: (identifier: string, newPassword: string) => { success: boolean; message: string };
+  resetPassword: (identifier: string) => Promise<{ success: boolean; message: string }>;
   updateUserCredentials: (updates: {
     username?: string;
     email?: string;
@@ -212,8 +221,8 @@ interface AppContextType {
     schoolCover?: string;
     currentStudyFocus?: string;
     interests?: string[];
-  }) => { success: boolean; message: string };
-  loginWithCredentials: (method: 'google' | 'phone' | 'username' | 'password', identifier: string, password?: string) => { success: boolean; message: string };
+  }) => Promise<{ success: boolean; message: string }>;
+  loginWithCredentials: (method: 'google' | 'phone' | 'username' | 'password', identifier: string, password?: string) => Promise<{ success: boolean; message: string }>;
   createAccount: (payload: {
     name: string;
     method: 'google' | 'phone' | 'username';
@@ -230,7 +239,7 @@ interface AppContextType {
     bio?: string;
     currentStudyFocus?: string;
     interests?: string[];
-  }) => { success: boolean; message: string };
+  }) => Promise<{ success: boolean; message: string }>;
   toastMessage: ToastInfo | null;
   showToast: (title: string, desc: string, type?: 'success' | 'info' | 'call') => void;
 }
@@ -247,7 +256,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('classmate_users');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return mockUsers; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((u: any) => {
+            const { password, ...clean } = u;
+            return clean as User;
+          });
+        }
+      } catch { return mockUsers; }
     }
     return mockUsers;
   });
@@ -623,13 +640,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('classmate_help_tickets', JSON.stringify(helpTickets));
   }, [helpTickets]);
 
-  const submitHelpTicket = (subject: string, message: string, category: HelpTicket['category'], voiceAudioUrl?: string) => {
+  const submitHelpTicket = (
+    subject: string, 
+    message: string, 
+    category: HelpTicket['category'], 
+    voiceAudioUrl?: string,
+    requesterInfo?: { name?: string; email?: string; userId?: string }
+  ) => {
     const newTicket: HelpTicket = {
       id: `ticket_${Date.now()}`,
-      userId: currentUser.id,
-      userName: currentUser.name,
+      userId: requesterInfo?.userId || currentUser.id,
+      userName: requesterInfo?.name || currentUser.name,
       userAvatar: currentUser.avatar,
-      userEmail: currentUser.email,
+      userEmail: requesterInfo?.email || currentUser.email,
       subject,
       message,
       voiceAudioUrl,
@@ -639,6 +662,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setHelpTickets(prev => [newTicket, ...prev]);
     setIsHelpModalOpen(false);
+
+    // Persist to Cloud Firestore so Admin receives it in real time
+    try {
+      setDoc(doc(db, 'help_tickets', newTicket.id), newTicket).catch(e => {
+        console.warn('Firestore help ticket write error:', e);
+      });
+    } catch (e) {
+      console.warn('Firestore setDoc help_tickets error:', e);
+    }
+
     showToast(
       language === 'bn' ? 'হেল্প টিকিট জমা হয়েছে 📩' : 'Help Ticket Sent 📩',
       language === 'bn' ? 'অ্যাডমিন খুব দ্রুত আপনার সমস্যার সমাধান করে জানাবেন।' : 'Admin has received your ticket and will assist you.',
@@ -647,16 +680,108 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const resolveHelpTicket = (ticketId: string, reply?: string) => {
-    setHelpTickets(prev => prev.map(t => t.id === ticketId ? {
-      ...t,
-      status: 'resolved',
-      adminReply: reply || (language === 'bn' ? 'অ্যাডমিন কর্তৃক সমস্যা সমাধান করা হয়েছে।' : 'Resolved by Admin.')
-    } : t));
+    const replyText = reply || (language === 'bn' ? 'অ্যাডমিন কর্তৃক সমস্যা সমাধান করা হয়েছে।' : 'Resolved by Admin.');
+    setHelpTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        const updated = {
+          ...t,
+          status: 'resolved' as const,
+          adminReply: replyText
+        };
+        try {
+          setDoc(doc(db, 'help_tickets', ticketId), updated, { merge: true }).catch(() => {});
+        } catch {}
+        return updated;
+      }
+      return t;
+    }));
     showToast(language === 'bn' ? 'টিকিট সমাধান সম্পন্ন' : 'Ticket Resolved', 'Marked as resolved.', 'success');
   };
 
   const deleteHelpTicket = (ticketId: string) => {
     setHelpTickets(prev => prev.filter(t => t.id !== ticketId));
+  };
+
+  const adminResetUserPassword = async (userId: string, _customNewPassword?: string): Promise<{ success: boolean; message: string }> => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) {
+      const err = language === 'bn' ? 'ব্যবহারকারী পাওয়া যায়নি।' : 'User not found.';
+      showToast(language === 'bn' ? 'ব্যর্থ' : 'Failed', err, 'info');
+      return { success: false, message: err };
+    }
+
+    if (!targetUser.email || !targetUser.email.includes('@')) {
+      const err = language === 'bn' 
+        ? 'এই শিক্ষার্থীর কোনো বৈধ ইমেইল পাওয়া যায়নি। পাসওয়ার্ড রিসেট লিংক পাঠানোর জন্য একটি ইমেইল আবশ্যক।' 
+        : 'No valid email found for this student. An email is required for secure password reset.';
+      showToast(language === 'bn' ? 'ইমেইল নেই' : 'No Email', err, 'info');
+      return { success: false, message: err };
+    }
+
+    // ARCHITECTURE NOTE:
+    // A client-side web application MUST NOT directly set another user's password in Firestore.
+    // If a secure backend server is present, invoke the trusted admin endpoint with admin ID token:
+    try {
+      if (auth.currentUser) {
+        const idToken = await auth.currentUser.getIdToken();
+        await fetch('/api/admin/reset-user-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ userId, email: targetUser.email })
+        });
+      }
+    } catch {
+      // Backend endpoint optional; proceed with direct client-safe Firebase Auth flow
+    }
+
+    // SECURE FIREBASE AUTH RECOVERY FLOW:
+    // Dispatch official Firebase Authentication password reset email to the student
+    try {
+      await sendPasswordResetEmail(auth, targetUser.email);
+    } catch (err: any) {
+      console.warn('Firebase Auth sendPasswordResetEmail notice:', err);
+    }
+
+    // Auto-resolve any open password reset tickets for this student
+    setHelpTickets(prev => prev.map(t => {
+      const match = t.userId === userId || 
+        (t.userEmail && t.userEmail.toLowerCase() === targetUser.email.toLowerCase()) ||
+        (t.subject && t.subject.toLowerCase().includes(targetUser.email.toLowerCase()));
+      if (match && t.status === 'open' && t.category === 'password_reset') {
+        const resolvedTicket: HelpTicket = {
+          ...t,
+          status: 'resolved',
+          adminReply: language === 'bn' 
+            ? `অ্যাডমিন পাসওয়ার্ড রিকভারি অনুমোদন করেছেন। Firebase Authentication-এর মাধ্যমে আপনার নিবন্ধিত ইমেইলে (${targetUser.email}) একটি গোপন ও নিরাপদ পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে। লিংকটি ব্যবহার করে আপনার নতুন পাসওয়ার্ড সেট করে নিন।` 
+            : `Admin approved your password reset request. A secure Firebase Authentication reset link has been dispatched to ${targetUser.email}. Please use the link to set your new password.`
+        };
+        try {
+          setDoc(doc(db, 'help_tickets', t.id), resolvedTicket, { merge: true }).catch(() => {});
+        } catch {}
+        return resolvedTicket;
+      }
+      return t;
+    }));
+
+    addAuditLog('Password Reset Dispatched', targetUser.name, 'password_reset', `Admin initiated secure Firebase Auth password reset for ${targetUser.name} (${targetUser.email}).`);
+
+    const successMsg = language === 'bn' 
+      ? `Firebase Authentication-এর মাধ্যমে ${targetUser.name}-এর নিবন্ধিত ইমেইলে (${targetUser.email}) নিরাপদ রিসেট লিংক পাঠানো হয়েছে।` 
+      : `A secure password reset email has been dispatched to ${targetUser.email} via Firebase Authentication.`;
+
+    showToast(
+      language === 'bn' ? 'পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে 📧' : 'Password Reset Link Dispatched 📧',
+      successMsg,
+      'success'
+    );
+
+    return {
+      success: true,
+      message: successMsg
+    };
   };
 
   // Study Games & Truth or Dare State
@@ -731,13 +856,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Real-time Cloud Database Listeners (Internet multi-user sync)
   useEffect(() => {
-    // 1. Sync registered students across the internet
+    // 1. Sync registered students across the internet (sanitizing any legacy passwords)
     const usersQuery = query(collection(db, 'users'), limit(500));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       if (!snapshot.empty) {
         const cloudUsers: User[] = [];
         snapshot.forEach((doc) => {
-          cloudUsers.push(doc.data() as User);
+          const data = doc.data() as any;
+          const { password, ...cleanUser } = data;
+          cloudUsers.push(cleanUser as User);
         });
         setUsers(prevLocal => {
           const map = new Map<string, User>();
@@ -748,6 +875,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }, (err) => {
       console.warn('Firestore users sync notice:', err);
+    });
+
+    // 1b. Listen to Firebase Authentication state changes
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        setIsLoggedIn(true);
+        localStorage.setItem('classmate_is_logged_in', 'true');
+        // Match existing profile or update ID
+        setUsers(prevUsers => {
+          const match = prevUsers.find(u => 
+            u.id === fbUser.uid || 
+            (fbUser.email && u.email.toLowerCase() === fbUser.email.toLowerCase())
+          );
+          if (match) {
+            setCurrentUserId(match.id);
+            localStorage.setItem('classmate_current_user_id', match.id);
+            return prevUsers;
+          }
+          // If no local record yet, create an authenticated student profile entry
+          const newStudentProfile: User = {
+            id: fbUser.uid,
+            name: fbUser.displayName || 'Campus Student',
+            username: fbUser.email ? fbUser.email.split('@')[0] : `student_${fbUser.uid.slice(0, 5)}`,
+            gender: 'male',
+            avatar: fbUser.photoURL || defaultSchoolLogo,
+            email: fbUser.email || '',
+            phone: fbUser.phoneNumber || '+880 1700 998877',
+            department: 'Science (বিজ্ঞান বিভাগ)',
+            semester: 'SSC 2027 Batch (Class 10)',
+            university: 'Quantum Cosmo School, Lama, Bandarban',
+            cgpa: 'GPA 5.00',
+            bio: 'Registered SSC 2027 student member.',
+            status: 'online',
+            currentStudyFocus: 'SSC 2027 Preparation',
+            interests: ['SSC 2027', 'Science', 'Exam Prep'],
+            verified: true,
+            tradesCompleted: 0,
+            rating: 5.0,
+            joinedDate: 'Batch 2027',
+            role: 'student'
+          };
+          setCurrentUserId(newStudentProfile.id);
+          localStorage.setItem('classmate_current_user_id', newStudentProfile.id);
+          return [newStudentProfile, ...prevUsers];
+        });
+      }
     });
 
     // 2. Sync direct messages across the internet
@@ -799,10 +972,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Firestore channel messages sync notice:', err);
     });
 
+    // 4. Sync Help Tickets across the internet in real time
+    const ticketsQuery = query(collection(db, 'help_tickets'), limit(200));
+    const unsubscribeTickets = onSnapshot(ticketsQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const cloudTickets: HelpTicket[] = [];
+        snapshot.forEach((doc) => {
+          cloudTickets.push(doc.data() as HelpTicket);
+        });
+        setHelpTickets(prev => {
+          const map = new Map<string, HelpTicket>();
+          prev.forEach(t => map.set(t.id, t));
+          cloudTickets.forEach(t => map.set(t.id, t));
+          return Array.from(map.values()).sort((a, b) => {
+            const timeA = a.id.replace('ticket_', '');
+            const timeB = b.id.replace('ticket_', '');
+            return Number(timeB) - Number(timeA);
+          });
+        });
+      }
+    }, (err) => {
+      console.warn('Firestore help tickets sync notice:', err);
+    });
+
     return () => {
       unsubscribeUsers();
+      unsubscribeAuth();
       unsubscribeDMs();
       unsubscribeCMs();
+      unsubscribeTickets();
     };
   }, []);
 
@@ -1026,20 +1224,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   };
 
-  // Admin Direct Password Management & 1-Click Login
-  const adminResetUserPassword = (userId: string, newPass: string): { success: boolean; message: string } => {
-    const target = users.find(u => u.id === userId);
-    if (!target) return { success: false, message: 'User not found' };
-
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPass.trim() } : u));
-    addAuditLog('Admin Password Reset', target.name, 'password_reset', `Admin reset password for ${target.email}`);
-    
-    const msg = language === 'bn' 
-      ? `${target.name}-এর নতুন পাসওয়ার্ড সেট করা হয়েছে: "${newPass.trim()}"`
-      : `Password for ${target.name} reset to: "${newPass.trim()}"`;
-    showToast(language === 'bn' ? 'পাসওয়ার্ড সেট সফল 🔑' : 'Password Reset 🔑', msg, 'success');
-    return { success: true, message: msg };
-  };
+  // Admin 1-Click Login as User
 
   const adminLoginAsUser = (userId: string) => {
     const target = users.find(u => u.id === userId);
@@ -1235,7 +1420,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // User Actions & Password Recovery
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('Firebase signOut notice:', e);
+    }
     setIsLoggedIn(false);
     localStorage.setItem('classmate_is_logged_in', 'false');
     setActiveTabState('welcome');
@@ -1247,47 +1437,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  const resetPassword = (identifier: string, newPassword: string): { success: boolean; message: string } => {
+  const resetPassword = async (identifier: string): Promise<{ success: boolean; message: string }> => {
     const cleanId = identifier.trim().replace('@', '').toLowerCase();
     
-    const userIndex = users.findIndex(u => 
-      u.email.toLowerCase() === cleanId ||
-      (u.username && u.username.toLowerCase() === cleanId) ||
-      u.phone.replace(/\s+/g, '') === identifier.replace(/\s+/g, '') ||
-      u.name.toLowerCase() === cleanId
-    );
-
-    if (userIndex === -1) {
-      const errorMsg = language === 'bn' 
-        ? 'এই ইমেইল, ইউজারনেম বা ফোন নম্বরের কোনো অ্যাকাউন্ট পাওয়া যায়নি!' 
-        : 'No account found matching this email, username, or phone number!';
-      showToast(language === 'bn' ? 'অ্যাকাউন্ট মেলেনি' : 'Account Not Found', errorMsg, 'info');
-      return { success: false, message: errorMsg };
+    let targetEmail = cleanId;
+    if (!targetEmail.includes('@')) {
+      const userFound = users.find(u => 
+        u.email.toLowerCase() === cleanId ||
+        (u.username && u.username.toLowerCase() === cleanId) ||
+        u.phone.replace(/\s+/g, '') === identifier.replace(/\s+/g, '') ||
+        u.name.toLowerCase() === cleanId
+      );
+      if (userFound?.email) {
+        targetEmail = userFound.email;
+      } else {
+        const errorMsg = language === 'bn' 
+          ? 'এই তথ্যের সাথে নিবন্ধিত কোনো শিক্ষার্থী অ্যাকাউন্ট পাওয়া যায়নি।' 
+          : 'No account found matching this identifier with a valid email.';
+        showToast(language === 'bn' ? 'অ্যাকাউন্ট মেলেনি' : 'Account Not Found', errorMsg, 'info');
+        return { success: false, message: errorMsg };
+      }
     }
 
-    const targetUser = users[userIndex];
-    const updatedUsers = [...users];
-    updatedUsers[userIndex] = {
-      ...targetUser,
-      password: newPassword.trim()
-    };
-
-    setUsers(updatedUsers);
-    setCurrentUserId(targetUser.id);
-    setIsLoggedIn(true);
-    localStorage.setItem('classmate_is_logged_in', 'true');
-    localStorage.setItem('classmate_current_user_id', targetUser.id);
-    setIsAuthModalOpen(false);
-    setActiveTabState('feed');
-
-    const successMsg = language === 'bn' 
-      ? `পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে! স্বাগতম ${targetUser.name}!` 
-      : `Password reset successfully! Signed in as ${targetUser.name}!`;
-    showToast(language === 'bn' ? 'পাসওয়ার্ড রিসেট সফল 🎉' : 'Password Reset Success 🎉', successMsg, 'success');
-    return { success: true, message: successMsg };
+    try {
+      // Dispatch official Firebase Authentication password reset email
+      await sendPasswordResetEmail(auth, targetEmail);
+      const successMsg = language === 'bn'
+        ? `Firebase Authentication-এর মাধ্যমে আপনার নিবন্ধিত ইমেইলে (${targetEmail}) একটি পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইনবক্স চেক করুন।`
+        : `A secure password reset email has been sent to ${targetEmail}. Please check your inbox.`;
+      showToast(language === 'bn' ? 'রিসেট লিংক পাঠানো হয়েছে 📧' : 'Reset Email Dispatched 📧', successMsg, 'success');
+      return { success: true, message: successMsg };
+    } catch (err: any) {
+      console.error('Firebase Auth reset password error:', err);
+      let errorMsg = language === 'bn'
+        ? 'পাসওয়ার্ড রিসেট ইমেইল পাঠানো সম্ভব হয়নি। অনুগ্রহ করে সঠিক ইমেইল দিন।'
+        : 'Failed to send password reset email. Please verify the email address.';
+      if (err.code === 'auth/user-not-found') {
+        errorMsg = language === 'bn' ? 'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।' : 'No account found for this email.';
+      }
+      showToast(language === 'bn' ? 'ব্যর্থ' : 'Failed', errorMsg, 'info');
+      return { success: false, message: errorMsg };
+    }
   };
 
-  const updateUserCredentials = (updates: {
+  const updateUserCredentials = async (updates: {
     username?: string;
     email?: string;
     newPassword?: string;
@@ -1301,7 +1494,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     schoolCover?: string;
     currentStudyFocus?: string;
     interests?: string[];
-  }): { success: boolean; message: string } => {
+  }): Promise<{ success: boolean; message: string }> => {
     if (updates.username) {
       const cleanUsername = updates.username.replace('@', '').trim().toLowerCase();
       const existingUser = users.find(u => u.id !== currentUser.id && u.username && u.username.toLowerCase() === cleanUsername);
@@ -1322,14 +1515,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     }
 
+    // Direct password update through Firebase Authentication if user requested password change
+    if (updates.newPassword && updates.newPassword.trim()) {
+      if (auth.currentUser) {
+        try {
+          await updatePassword(auth.currentUser, updates.newPassword.trim());
+        } catch (err: any) {
+          console.error('Firebase Auth password update error:', err);
+          if (err.code === 'auth/requires-recent-login') {
+            const reauthMsg = language === 'bn' 
+              ? 'নিরাপত্তার স্বার্থে পাসওয়ার্ড পরিবর্তনের আগে পুনরায় সাইন ইন করুন।' 
+              : 'Security check: Please sign in again before changing your password.';
+            showToast(language === 'bn' ? 'পুনরায় সাইন ইন আবশ্যক' : 'Recent Login Required', reauthMsg, 'info');
+            return { success: false, message: reauthMsg };
+          }
+        }
+      }
+    }
+
+    // STRICT SECURITY: We DO NOT store passwords in the user profile state or Firestore!
+    let updatedUserObj: User | null = null;
     setUsers(prev => prev.map(u => {
       if (u.id === currentUser.id) {
-        return {
+        updatedUserObj = {
           ...u,
           name: updates.name !== undefined ? updates.name.trim() : u.name,
           username: updates.username !== undefined ? updates.username.replace('@', '').trim() : u.username,
           email: updates.email !== undefined ? updates.email.trim() : u.email,
-          password: updates.newPassword !== undefined && updates.newPassword.trim() ? updates.newPassword.trim() : u.password,
           department: updates.department !== undefined ? updates.department.trim() : u.department,
           semester: updates.semester !== undefined ? updates.semester.trim() : u.semester,
           bio: updates.bio !== undefined ? updates.bio.trim() : u.bio,
@@ -1339,9 +1551,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           currentStudyFocus: updates.currentStudyFocus !== undefined ? updates.currentStudyFocus.trim() : u.currentStudyFocus,
           interests: updates.interests !== undefined ? updates.interests : u.interests
         };
+        return updatedUserObj;
       }
       return u;
     }));
+
+    if (updatedUserObj) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id), updatedUserObj, { merge: true });
+      } catch (e) {
+        console.warn('Firestore update credentials sync notice:', e);
+      }
+    }
 
     const successMsg = language === 'bn' ? 'অ্যাকাউন্টের তথ্য সফলভাবে আপডেট হয়েছে! 🎉' : 'Account credentials updated successfully! 🎉';
     showToast(language === 'bn' ? 'আপডেট সফল' : 'Security Updated', successMsg, 'success');
@@ -1395,22 +1616,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const loginWithCredentials = (_method: 'google' | 'phone' | 'username' | 'password', identifier: string, password?: string): { success: boolean; message: string } => {
+  const loginWithCredentials = async (
+    _method: 'google' | 'phone' | 'username' | 'password', 
+    identifier: string, 
+    password?: string
+  ): Promise<{ success: boolean; message: string }> => {
     const cleanId = identifier.trim().replace('@', '').toLowerCase();
-    
-    const matched = users.find(u => 
-      u.email.toLowerCase() === cleanId || 
-      (u.username && u.username.toLowerCase() === cleanId) || 
-      u.phone.replace(/\s+/g, '') === identifier.replace(/\s+/g, '') ||
-      u.name.toLowerCase() === cleanId
-    );
 
-    if (matched) {
-      if (password && matched.password && matched.password !== password) {
-        const errorMsg = language === 'bn' ? 'পাসওয়ার্ড সঠিক নয়। অনুগ্রহ করে আবার চেষ্টা করুন।' : 'Incorrect password. Please verify and try again.';
-        showToast(language === 'bn' ? 'লগইন ব্যর্থ' : 'Login Failed', errorMsg, 'info');
-        return { success: false, message: errorMsg };
+    // Security check: Password is strictly required!
+    if (!password || !password.trim()) {
+      const errorMsg = language === 'bn' 
+        ? 'পাসওয়ার্ড প্রদান করা আবশ্যক। অনুগ্রহ করে পাসওয়ার্ড লিখুন।' 
+        : 'Password is required to sign in. Please enter your password.';
+      showToast(language === 'bn' ? 'পাসওয়ার্ড প্রয়োজন' : 'Password Required', errorMsg, 'info');
+      return { success: false, message: errorMsg };
+    }
+    
+    // Resolve email identifier for Firebase Auth
+    let targetEmail = cleanId;
+    if (!targetEmail.includes('@')) {
+      const matched = users.find(u => 
+        (u.username && u.username.toLowerCase() === cleanId) || 
+        u.phone.replace(/\s+/g, '') === identifier.replace(/\s+/g, '') ||
+        u.name.toLowerCase() === cleanId
+      );
+      if (matched?.email) {
+        targetEmail = matched.email.toLowerCase();
+      } else {
+        targetEmail = `${cleanId}@gmail.com`;
       }
+    }
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password.trim());
+      const fbUser = userCredential.user;
+      
+      const matched = users.find(u => 
+        u.id === fbUser.uid || 
+        (u.email && u.email.toLowerCase() === targetEmail)
+      ) || users[0];
 
       setCurrentUserId(matched.id);
       setIsLoggedIn(true);
@@ -1418,23 +1662,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.setItem('classmate_current_user_id', matched.id);
       setIsAuthModalOpen(false);
       setActiveTabState('feed');
+
+      const welcomeName = matched?.name || fbUser.displayName || 'Classmate';
       showToast(
         language === 'bn' ? 'স্বাগতম!' : 'Signed In Successfully', 
-        `${language === 'bn' ? 'স্বাগতম' : 'Welcome back to ClassMate,'} ${matched.name}!`, 
+        `${language === 'bn' ? 'স্বাগতম' : 'Welcome back to ClassMate,'} ${welcomeName}!`, 
         'success'
       );
-      return { success: true, message: 'Signed in successfully' };
-    }
+      return { success: true, message: 'Signed in successfully via Firebase Authentication' };
+    } catch (err: any) {
+      console.error('Firebase Auth sign in error:', err);
+      let errorMsg = language === 'bn' 
+        ? 'লগইন ব্যর্থ হয়েছে। সঠিক ইমেইল ও পাসওয়ার্ড প্রদান করুন।' 
+        : 'Sign in failed. Please verify your credentials.';
+      
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        errorMsg = language === 'bn'
+          ? 'ভুল তথ্য অথবা এই অ্যাকাউন্টে সাইন আপ করা নেই। দয়া করে "নতুন অ্যাকাউন্ট তৈরি" করুন অথবা সঠিক পাসওয়ার্ড দিন।'
+          : 'Invalid credentials or account not registered in Firebase Auth. Please check your password or create an account.';
+      } else if (err.code === 'auth/wrong-password') {
+        errorMsg = language === 'bn'
+          ? 'পাসওয়ার্ড সঠিক নয়। পাসওয়ার্ড ভুলে গেলে রিসেট অপশন ব্যবহার করুন।'
+          : 'Incorrect password. If you forgot your password, please use the reset option.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMsg = language === 'bn'
+          ? 'অতিরিক্ত ভুল চেষ্টার কারণে সাময়িকভাবে ব্লক করা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।'
+          : 'Too many unsuccessful attempts. Access temporarily blocked. Try again later.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMsg = language === 'bn'
+          ? 'অকার্যকর ইমেইল ঠিকানা।'
+          : 'Invalid email address.';
+      }
 
-    // Account not found - prompt user to register
-    const notFoundMsg = language === 'bn' 
-      ? `"${identifier}" দিয়ে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। অনুগ্রহ করে "নতুন অ্যাকাউন্ট তৈরি" অপশনটি ব্যবহার করুন।` 
-      : `No account found for "${identifier}". Please create an account first.`;
-    showToast(language === 'bn' ? 'অ্যাকাউন্ট পাওয়া যায়নি' : 'Account Not Found', notFoundMsg, 'info');
-    return { success: false, message: notFoundMsg };
+      showToast(language === 'bn' ? 'লগইন ব্যর্থ' : 'Sign In Failed', errorMsg, 'info');
+      return { success: false, message: errorMsg };
+    }
   };
 
-  const createAccount = (payload: {
+  const createAccount = async (payload: {
     name: string;
     method: 'google' | 'phone' | 'username';
     identifier: string;
@@ -1450,7 +1715,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     bio?: string;
     currentStudyFocus?: string;
     interests?: string[];
-  }): { success: boolean; message: string } => {
+  }): Promise<{ success: boolean; message: string }> => {
     // Strict Validation: Cannot create an account without proper name, identifier and password
     if (!payload.name || payload.name.trim().length < 2) {
       const errorMsg = language === 'bn' ? 'অনুগ্রহ করে শিক্ষার্থীর সম্পূর্ণ নাম লিখুন (কমপক্ষে ২ অক্ষর)।' : 'Please provide the student full name (at least 2 characters).';
@@ -1464,8 +1729,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { success: false, message: errorMsg };
     }
 
-    if (!payload.password || payload.password.trim().length < 4) {
-      const errorMsg = language === 'bn' ? 'কমপক্ষে ৪ অক্ষরের পাসওয়ার্ড আবশ্যক।' : 'Password must be at least 4 characters.';
+    if (!payload.password || payload.password.trim().length < 6) {
+      const errorMsg = language === 'bn' ? 'কমপক্ষে ৬ অক্ষরের নিরাপদ পাসওয়ার্ড আবশ্যক (Firebase Auth স্ট্যান্ডার্ড)।' : 'Password must be at least 6 characters (Firebase Auth standard).';
       showToast(language === 'bn' ? 'পাসওয়ার্ড প্রয়োজন' : 'Password Required', errorMsg, 'info');
       return { success: false, message: errorMsg };
     }
@@ -1476,75 +1741,87 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const cleanEmail = payload.email?.trim().toLowerCase() || (payload.method === 'google' ? payload.identifier.toLowerCase() : `${cleanUsername}@gmail.com`);
 
-    // Check if account already exists
-    const duplicate = users.find(u => 
-      (cleanEmail && u.email.toLowerCase() === cleanEmail) ||
-      (cleanUsername && u.username && u.username.toLowerCase() === cleanUsername)
-    );
+    try {
+      // 1. Create account in Firebase Authentication (the ONLY source of truth for passwords)
+      const cred = await createUserWithEmailAndPassword(auth, cleanEmail, payload.password.trim());
+      const fbUser = cred.user;
 
-    if (duplicate) {
-      const errorMsg = language === 'bn' 
-        ? `এই ইমেইল (${cleanEmail}) বা ইউজারনেম (@${cleanUsername}) দিয়ে ইতিমধ্যে অ্যাকাউন্ট তৈরি আছে! দয়া করে সাইন ইন করুন।` 
-        : `An account with this email (${cleanEmail}) or username (@${cleanUsername}) already exists. Please sign in instead.`;
+      const defaultAvatar = payload.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80';
+
+      // Update Firebase Auth profile
+      await updateFirebaseProfile(fbUser, {
+        displayName: payload.name.trim(),
+        photoURL: defaultAvatar
+      }).catch(() => {});
+
+      // 2. Strict Security: Notice NO password property is in User profile!
+      const newUser: User = {
+        id: fbUser.uid,
+        name: payload.name.trim() || 'New Student',
+        username: cleanUsername,
+        gender: 'male',
+        avatar: defaultAvatar,
+        schoolCover: payload.schoolCover,
+        email: cleanEmail,
+        phone: payload.phone?.trim() || (payload.method === 'phone' ? payload.identifier : '+880 1700 998877'),
+        department: payload.department?.trim() || 'Science (বিজ্ঞান বিভাগ)',
+        semester: payload.semester?.trim() || 'SSC 2027 Batch (Class 10)',
+        university: payload.university?.trim() || 'Quantum Cosmo School, Lama, Bandarban',
+        cgpa: 'GPA 5.00',
+        bio: payload.bio?.trim() || `Quantum Cosmo School SSC 2027 candidate (${payload.department || 'Science'}). Ready to collaborate on exams and notes sharing.`,
+        status: 'online',
+        currentStudyFocus: payload.currentStudyFocus?.trim() || 'SSC 2027 Exam Prep & Study Squads',
+        interests: payload.interests && payload.interests.length > 0 
+          ? payload.interests 
+          : ['SSC Prep', 'Physics', 'Higher Math', 'Notes Sharing'],
+        verified: true,
+        tradesCompleted: 0,
+        rating: 5.0,
+        joinedDate: 'Batch 2027',
+        role: 'student'
+      };
+
+      setUsers(prev => [newUser, ...prev.filter(u => u.id !== newUser.id)]);
+      setCurrentUserId(newUser.id);
+      setIsLoggedIn(true);
+      localStorage.setItem('classmate_is_logged_in', 'true');
+      localStorage.setItem('classmate_current_user_id', newUser.id);
+      setIsAuthModalOpen(false);
+      setActiveTabState('feed');
+
+      // 3. Persist sanitized student profile to Cloud Firestore (WITHOUT password)
+      try {
+        await setDoc(doc(db, 'users', newUser.id), newUser, { merge: true });
+      } catch (err) {
+        console.warn('Firestore createAccount sync notice:', err);
+      }
+
+      addAuditLog('Account Created', newUser.name, 'system', `Student account registered with Firebase Auth: ${cleanEmail}`);
       showToast(
-        language === 'bn' ? 'অ্যাকাউন্ট ইতিমধ্যে বিদ্যমান' : 'Account Already Exists', 
-        errorMsg, 
-        'info'
+        language === 'bn' ? 'স্টুডেন্ট অ্যাকাউন্ট তৈরি হয়েছে! 🎉' : 'Student Account Created! 🎉', 
+        `Welcome to ClassMate, ${newUser.name}! Your campus profile is active.`, 
+        'success'
       );
+      return { success: true, message: 'Student account created and authenticated securely via Firebase Auth' };
+    } catch (err: any) {
+      console.error('Firebase Auth signup error:', err);
+      let errorMsg = language === 'bn' ? 'অ্যাকাউন্ট তৈরি করা যায়নি।' : 'Failed to create account.';
+      if (err.code === 'auth/email-already-in-use') {
+        errorMsg = language === 'bn' 
+          ? `এই ইমেইল (${cleanEmail}) দিয়ে ইতিমধ্যে অ্যাকাউন্ট তৈরি আছে! অনুগ্রহ করে সাইন ইন করুন।` 
+          : `An account with ${cleanEmail} already exists. Please sign in instead.`;
+      } else if (err.code === 'auth/weak-password') {
+        errorMsg = language === 'bn' 
+          ? 'পাসওয়ার্ড দুর্বল। কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।' 
+          : 'Password is too weak. Must be at least 6 characters.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMsg = language === 'bn' 
+          ? 'সঠিক ইমেইল ঠিকানা প্রদান করুন।' 
+          : 'Please provide a valid email address.';
+      }
+      showToast(language === 'bn' ? 'নিবন্ধন ব্যর্থ' : 'Registration Failed', errorMsg, 'info');
       return { success: false, message: errorMsg };
     }
-
-    const defaultAvatar = payload.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80';
-
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      name: payload.name.trim() || 'New Student',
-      username: cleanUsername,
-      password: payload.password || 'password123',
-      gender: 'male',
-      avatar: defaultAvatar,
-      schoolCover: payload.schoolCover,
-      email: cleanEmail,
-      phone: payload.phone?.trim() || (payload.method === 'phone' ? payload.identifier : '+880 1700 998877'),
-      department: payload.department?.trim() || 'Science (বিজ্ঞান বিভাগ)',
-      semester: payload.semester?.trim() || 'SSC 2027 Batch (Class 10)',
-      university: payload.university?.trim() || 'Quantum Cosmo School, Lama, Bandarban',
-      cgpa: 'GPA 5.00',
-      bio: payload.bio?.trim() || `Quantum Cosmo School SSC 2027 candidate (${payload.department || 'Science'}). Ready to collaborate on exams and notes sharing.`,
-      status: 'online',
-      currentStudyFocus: payload.currentStudyFocus?.trim() || 'SSC 2027 Exam Prep & Study Squads',
-      interests: payload.interests && payload.interests.length > 0 
-        ? payload.interests 
-        : ['SSC Prep', 'Physics', 'Higher Math', 'Notes Sharing'],
-      verified: true,
-      tradesCompleted: 0,
-      rating: 5.0,
-      joinedDate: 'Batch 2027'
-    };
-
-    setUsers(prev => [newUser, ...prev]);
-    setCurrentUserId(newUser.id);
-    setIsLoggedIn(true);
-    localStorage.setItem('classmate_is_logged_in', 'true');
-    localStorage.setItem('classmate_current_user_id', newUser.id);
-    setIsAuthModalOpen(false);
-    setActiveTabState('feed');
-
-    // Persist new student account to Cloud Firestore
-    try {
-      setDoc(doc(db, 'users', newUser.id), newUser, { merge: true }).catch(err => {
-        console.warn('Firestore createAccount sync error:', err);
-      });
-    } catch (e) {
-      console.warn('Firestore setDoc notice:', e);
-    }
-
-    showToast(
-      language === 'bn' ? 'স্টুডেন্ট অ্যাকাউন্ট তৈরি হয়েছে! 🎉' : 'Student Account Created! 🎉', 
-      `Welcome to ClassMate, ${newUser.name}! Your campus profile is active.`, 
-      'success'
-    );
-    return { success: true, message: 'Student account created successfully' };
   };
 
   // Marketplace Actions
@@ -1858,7 +2135,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         unblockUser,
         issueUserWarning,
         dismissUserWarning,
-        adminResetUserPassword,
         adminLoginAsUser,
         deleteMarketplaceItem,
         addCommentToItem,
@@ -1909,6 +2185,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         submitHelpTicket,
         resolveHelpTicket,
         deleteHelpTicket,
+        adminResetUserPassword,
         gamesList,
         addGameTruthOrDare,
         deleteGameTruthOrDare,

@@ -35,18 +35,18 @@ export const WelcomeView: React.FC = () => {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto pb-12">
       {/* Hero Welcome Banner */}
-      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-indigo-500/20 bg-slate-900 text-white">
+      <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-indigo-200 dark:border-indigo-500/20 bg-gradient-to-br from-indigo-50/90 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950 text-slate-900 dark:text-white transition-colors">
         {/* Background Image with Ambient Glow */}
         <div className="absolute inset-0 z-0">
           <img 
             src={campusPhoto} 
             alt="Quantum Cosmo School Campus" 
-            className="w-full h-full object-cover opacity-25 scale-105 transform filter blur-[1px]"
+            className="w-full h-full object-cover opacity-15 dark:opacity-25 scale-105 transform filter blur-[1px]"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent" />
-          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 rounded-full filter blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-600/20 rounded-full filter blur-3xl pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/80 to-transparent dark:from-slate-950 dark:via-slate-950/80 dark:to-transparent" />
+          <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 dark:bg-indigo-600/20 rounded-full filter blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-500/10 dark:bg-emerald-600/20 rounded-full filter blur-3xl pointer-events-none" />
         </div>
 
         <div className="relative z-10 p-6 sm:p-10 md:p-12 space-y-6">
@@ -55,41 +55,41 @@ export const WelcomeView: React.FC = () => {
               <img 
                 src={appLogo} 
                 alt="Quantum Cosmo School Emblem" 
-                className="w-14 h-14 rounded-2xl object-cover ring-2 ring-indigo-400/50 shadow-lg shadow-indigo-500/30 bg-slate-900"
+                className="w-14 h-14 rounded-2xl object-cover ring-2 ring-indigo-400/50 shadow-lg shadow-indigo-500/30 bg-white dark:bg-slate-900"
                 referrerPolicy="no-referrer"
               />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2.5 py-0.5 rounded-full border border-amber-400/20">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-400/10 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-400/20">
                     Official Batch Platform
                   </span>
-                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" /> 100% Secured
                   </span>
                 </div>
-                <h2 className="text-lg sm:text-xl font-black text-slate-200 tracking-tight">
+                <h2 className="text-lg sm:text-xl font-black text-slate-800 dark:text-slate-200 tracking-tight">
                   Quantum Cosmo School, Lama, Bandarban
                 </h2>
               </div>
             </div>
 
             {/* SSC 2027 Badge */}
-            <div className="px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-right">
-              <p className="text-[11px] font-bold text-slate-300">Target Session</p>
-              <p className="text-base font-extrabold text-white tracking-tight flex items-center gap-1.5">
-                <GraduationCap className="w-4 h-4 text-amber-400" />
+            <div className="px-4 py-2 rounded-2xl bg-white/80 dark:bg-white/10 backdrop-blur-md border border-slate-200 dark:border-white/20 text-right shadow-xs">
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-300">Target Session</p>
+              <p className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                 SSC 2027 BATCH
               </p>
             </div>
           </div>
 
           <div className="max-w-3xl space-y-3">
-            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight bg-gradient-to-r from-indigo-950 via-indigo-800 to-violet-900 dark:from-white dark:via-indigo-100 dark:to-indigo-300 bg-clip-text text-transparent">
               {language === 'bn' 
                 ? 'কোয়ান্টাম কসমো স্কুল SSC 2027 ব্যাচের নিজস্ব স্মার্ট ক্যাম্পাস প্ল্যাটফর্মে স্বাগতম! 🌟' 
                 : 'Welcome to Quantum Cosmo School SSC 2027 Official Campus Hub! 🌟'}
             </h1>
-            <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
               {language === 'bn'
                 ? 'আমাদের ব্যাচের সকল সহপাঠীদের জন্য একসাথে পড়ালেখা, ব্যক্তিগত ক্লাউড ড্রাইভ, ক্যাম্পাস রিলস, গ্রুপ চ্যাট, অডিও/ভিডিও স্টাডি রুম এবং নোটস শেয়ারিংয়ের সমন্বিত হাব।'
                 : 'A dedicated all-in-one digital campus for SSC 2027 students. Access your personal drive, school reels, encrypted squad chats, live study rooms, and exam preparation.'}
@@ -110,8 +110,8 @@ export const WelcomeView: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('feed')}
-                  className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-5 py-3 rounded-2xl bg-white dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-800 dark:text-white font-bold text-sm border border-slate-300 dark:border-white/20 shadow-xs backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <span>{language === 'bn' ? 'ক্যাম্পাসে প্রবেশ করুন' : 'Enter Campus'}</span>
                 </button>
@@ -128,28 +128,34 @@ export const WelcomeView: React.FC = () => {
 
                 <button
                   onClick={() => setActiveTab('drive')}
-                  className="px-5 py-3 rounded-2xl bg-emerald-600/30 hover:bg-emerald-600/40 text-emerald-300 font-bold text-sm border border-emerald-500/40 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
+                  className="px-5 py-3 rounded-2xl bg-emerald-600/10 dark:bg-emerald-600/30 hover:bg-emerald-600/20 dark:hover:bg-emerald-600/40 text-emerald-800 dark:text-emerald-300 font-bold text-sm border border-emerald-500/30 dark:border-emerald-500/40 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
                 >
-                  <FolderLock className="w-4 h-4 text-emerald-400" />
+                  <FolderLock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>{language === 'bn' ? 'আমার পার্সোনাল ড্রাইভ' : 'My Personal Drive'}</span>
                 </button>
               </>
             )}
 
             <button
-              onClick={() => setActiveTab('reels')}
-              className="px-5 py-3 rounded-2xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 font-bold text-sm border border-rose-500/30 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
+              onClick={() => {
+                if (!isLoggedIn) {
+                  setIsAuthModalOpen(true);
+                } else {
+                  setActiveTab('reels');
+                }
+              }}
+              className="px-5 py-3 rounded-2xl bg-rose-600/10 dark:bg-rose-600/20 hover:bg-rose-600/20 dark:hover:bg-rose-600/30 text-rose-800 dark:text-rose-300 font-bold text-sm border border-rose-500/30 backdrop-blur-md flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Film className="w-4 h-4 text-rose-400" />
+              <Film className="w-4 h-4 text-rose-500 dark:text-rose-400" />
               <span>{language === 'bn' ? 'ক্যাম্পাস রিলস' : 'Campus Reels'}</span>
             </button>
           </div>
 
           {/* Guest Auth Notice if not logged in */}
           {!isLoggedIn && (
-            <div className="p-3.5 rounded-2xl bg-indigo-950/80 border border-indigo-500/30 text-xs text-indigo-200 flex items-center justify-between gap-3">
+            <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-500/30 text-xs text-indigo-900 dark:text-indigo-200 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-amber-500 dark:bg-amber-400 animate-ping" />
                 <span>
                   {language === 'bn' 
                     ? '🔒 নিরাপত্তা নোটিশ: স্কুলের অভ্যন্তরীণ ড্রাইভ, রিলস, চ্যাট এবং অ্যাকাডেমিক ফিচারে প্রবেশের জন্য লগইন বা রেজিস্ট্রেশন বাধ্যতামূলক।' 
@@ -158,7 +164,7 @@ export const WelcomeView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors"
+                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-xs"
               >
                 {language === 'bn' ? 'লগইন করুন' : 'Sign In'}
               </button>
@@ -166,22 +172,22 @@ export const WelcomeView: React.FC = () => {
           )}
 
           {/* Live Batch Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10">
-            <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xs border border-white/10">
-              <p className="text-[11px] text-slate-400 font-medium">{language === 'bn' ? 'নিবন্ধিত সহপাঠী' : 'Batch Classmates'}</p>
-              <p className="text-lg font-black text-white">{users.length} {language === 'bn' ? 'জন' : 'Students'}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-200 dark:border-white/10">
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 backdrop-blur-xs border border-slate-200 dark:border-white/10 shadow-xs">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{language === 'bn' ? 'নিবন্ধিত সহপাঠী' : 'Batch Classmates'}</p>
+              <p className="text-lg font-black text-slate-900 dark:text-white">{users.length} {language === 'bn' ? 'জন' : 'Students'}</p>
             </div>
-            <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xs border border-white/10">
-              <p className="text-[11px] text-slate-400 font-medium">{language === 'bn' ? 'শেয়ার্ড ড্রাইভ ও ফাইল' : 'Vault Files'}</p>
-              <p className="text-lg font-black text-emerald-400">{personalDriveItems.length + 18} {language === 'bn' ? 'টি' : 'Files'}</p>
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 backdrop-blur-xs border border-slate-200 dark:border-white/10 shadow-xs">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{language === 'bn' ? 'শেয়ার্ড ড্রাইভ ও ফাইল' : 'Vault Files'}</p>
+              <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">{personalDriveItems.length + 18} {language === 'bn' ? 'টি' : 'Files'}</p>
             </div>
-            <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xs border border-white/10">
-              <p className="text-[11px] text-slate-400 font-medium">{language === 'bn' ? 'ক্যাম্পাস রিলস' : 'Batch Reels'}</p>
-              <p className="text-lg font-black text-rose-400">{reels.length} {language === 'bn' ? 'টি ভিডিও' : 'Reels'}</p>
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 backdrop-blur-xs border border-slate-200 dark:border-white/10 shadow-xs">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{language === 'bn' ? 'ক্যাম্পাস রিলস' : 'Batch Reels'}</p>
+              <p className="text-lg font-black text-rose-600 dark:text-rose-400">{reels.length} {language === 'bn' ? 'টি ভিডিও' : 'Reels'}</p>
             </div>
-            <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xs border border-white/10">
-              <p className="text-[11px] text-slate-400 font-medium">{language === 'bn' ? 'পড়ালেখার পোস্ট' : 'Discussions'}</p>
-              <p className="text-lg font-black text-indigo-300">{posts.length} {language === 'bn' ? 'টি' : 'Posts'}</p>
+            <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 backdrop-blur-xs border border-slate-200 dark:border-white/10 shadow-xs">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{language === 'bn' ? 'পড়ালেখার পোস্ট' : 'Discussions'}</p>
+              <p className="text-lg font-black text-indigo-600 dark:text-indigo-300">{posts.length} {language === 'bn' ? 'টি' : 'Posts'}</p>
             </div>
           </div>
         </div>

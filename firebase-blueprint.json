@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Student or admin campus profile without credential storage",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "avatar": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "moderator", "admin", "super_admin"] },
+        "department": { "type": "string" },
+        "semester": { "type": "string" },
+        "university": { "type": "string" },
+        "status": { "type": "string" },
+        "verified": { "type": "boolean" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "HelpTicket": {
+      "title": "HelpTicket",
+      "description": "Student support and account assistance ticket",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "resolved"] },
+        "adminReply": { "type": "string" }
+      },
+      "required": ["id", "subject", "message", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Campus directory of registered students and administrators"
+    },
+    "/help_tickets/{ticketId}": {
+      "schema": "HelpTicket",
+      "description": "Campus help desk requests and password recovery inquiries"
+    }
+  }
+}

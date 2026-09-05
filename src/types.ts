@@ -32,7 +32,6 @@ export interface User {
   id: string;
   name: string;
   username?: string;
-  password?: string;
   avatar: string;
   schoolCover?: string;
   gender: 'male' | 'female' | 'other';

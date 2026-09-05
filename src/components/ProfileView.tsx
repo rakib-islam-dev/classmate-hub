@@ -131,7 +131,7 @@ export const ProfileView: React.FC = () => {
     );
   };
 
-  const handleSaveCredentials = (e: React.FormEvent) => {
+  const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!editUsername.trim() || !editEmail.trim()) {
@@ -144,10 +144,10 @@ export const ProfileView: React.FC = () => {
     }
 
     if (newPassword) {
-      if (newPassword.length < 4) {
+      if (newPassword.length < 6) {
         showToast(
           language === 'bn' ? 'পাসওয়ার্ড খুব ছোট' : 'Password Too Short',
-          language === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।' : 'Password must be at least 4 characters long.',
+          language === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে (Firebase Auth)।' : 'Password must be at least 6 characters long (Firebase Auth).',
           'info'
         );
         return;
@@ -162,14 +162,14 @@ export const ProfileView: React.FC = () => {
       }
     }
 
-    const res = updateUserCredentials({
+    const res = await updateUserCredentials({
       username: editUsername.trim().replace('@', ''),
       email: editEmail.trim(),
       newPassword: newPassword.trim() || undefined,
       currentPassword: currentPassword.trim() || undefined
     });
 
-    if (res.success) {
+    if (res && res.success) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');

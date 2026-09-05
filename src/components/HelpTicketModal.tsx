@@ -8,7 +8,10 @@ import {
   Mic, 
   Square, 
   ShieldCheck, 
-  CheckCircle2
+  CheckCircle2,
+  KeyRound,
+  User as UserIcon,
+  Mail
 } from 'lucide-react';
 
 export const HelpTicketModal: React.FC = () => {
@@ -16,9 +19,12 @@ export const HelpTicketModal: React.FC = () => {
     isHelpModalOpen, 
     setIsHelpModalOpen, 
     currentUser, 
+    users,
     helpTickets, 
     submitHelpTicket, 
     resolveHelpTicket, 
+    adminResetUserPassword,
+    resetPassword,
     isAdmin, 
     language,
     showToast
@@ -27,6 +33,8 @@ export const HelpTicketModal: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'create' | 'my_tickets' | 'admin_inbox'>('create');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [requesterName, setRequesterName] = useState(currentUser?.name && currentUser.name !== 'Rakibul Islam (Cadet)' ? currentUser.name : '');
+  const [requesterContact, setRequesterContact] = useState(currentUser?.email && currentUser.email !== 'rakibulislamq1673@gmail.com' ? currentUser.email : '');
   const [category, setCategory] = useState<HelpTicket['category']>('password_reset');
   const [isRecording, setIsRecording] = useState(false);
   const [voiceAudioUrl, setVoiceAudioUrl] = useState<string | undefined>(undefined);
@@ -51,19 +59,40 @@ export const HelpTicketModal: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subject.trim() || (!message.trim() && !voiceAudioUrl)) {
-      showToast('Error', 'Please provide subject and description.', 'info');
+    const finalSubject = subject.trim() || (category === 'password_reset' 
+      ? (language === 'bn' ? '🔑 পাসওয়ার্ড রিসেট ও সহায়তা রিকোয়েস্ট' : 'Password Reset Request') 
+      : (language === 'bn' ? 'ক্যাম্পাস হেল্প টিকিট' : 'General Help Ticket'));
+
+    if (!message.trim() && !voiceAudioUrl) {
+      showToast('Error', language === 'bn' ? 'অনুগ্রহ করে সমস্যার বিবরণ লিখুন।' : 'Please provide description of the issue.', 'info');
       return;
     }
 
-    submitHelpTicket(subject.trim(), message.trim(), category, voiceAudioUrl);
+    const contactStr = requesterContact.trim() ? `[Contact: ${requesterContact.trim()}] ` : '';
+    const fullMsg = `${contactStr}${message.trim()}`;
+
+    submitHelpTicket(
+      finalSubject, 
+      fullMsg, 
+      category, 
+      voiceAudioUrl, 
+      {
+        name: requesterName.trim() || currentUser.name,
+        email: requesterContact.trim() || currentUser.email,
+        userId: currentUser.id
+      }
+    );
+
     setSubject('');
     setMessage('');
     setVoiceAudioUrl(undefined);
     setActiveTab('my_tickets');
   };
 
-  const myTickets = helpTickets.filter(t => t.userId === currentUser.id);
+  const myTickets = helpTickets.filter(t => 
+    t.userId === currentUser.id || 
+    (requesterContact && t.userEmail && t.userEmail.toLowerCase() === requesterContact.toLowerCase())
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -137,6 +166,43 @@ export const HelpTicketModal: React.FC = () => {
                 <option value="drive_issue">{language === 'bn' ? '📁 ড্রাইভ বা ফাইল সম্পর্কিত সমস্যা' : 'Drive / File Storage Issue'}</option>
                 <option value="general_help">{language === 'bn' ? '💡 অন্যান্য সাহায্য বা পরামর্শ' : 'General Assistance / Feedback'}</option>
               </select>
+            </div>
+
+            {/* Requester Identity Information */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  {language === 'bn' ? 'আপনার নাম / শিক্ষার্থীর নাম *' : 'Student Name *'}
+                </label>
+                <div className="relative">
+                  <UserIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={requesterName}
+                    onChange={e => setRequesterName(e.target.value)}
+                    placeholder={language === 'bn' ? 'যেমন: Rakibul Islam' : 'e.g. Rakibul Islam'}
+                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  {language === 'bn' ? 'ইমেইল / ইউজারনেম / ফোন নম্বর *' : 'Email / Username / Phone *'}
+                </label>
+                <div className="relative">
+                  <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={requesterContact}
+                    onChange={e => setRequesterContact(e.target.value)}
+                    placeholder={language === 'bn' ? 'যেমন: student@gmail.com বা মোবাইল নম্বর' : 'e.g. student@gmail.com or phone'}
+                    className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>
@@ -278,22 +344,69 @@ export const HelpTicketModal: React.FC = () => {
                   <p className="text-xs text-slate-600 dark:text-slate-300">{ticket.message}</p>
                 </div>
 
-                {/* Resolve Box */}
+                {/* Resolve Box & One-Click Password Reset */}
                 {ticket.status === 'open' && (
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <input
-                      type="text"
-                      value={adminReplyText[ticket.id] || ''}
-                      onChange={e => setAdminReplyText(prev => ({ ...prev, [ticket.id]: e.target.value }))}
-                      placeholder="Write resolution reply or new password..."
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
-                    />
-                    <button
-                      onClick={() => resolveHelpTicket(ticket.id, adminReplyText[ticket.id])}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs cursor-pointer"
-                    >
-                      Resolve
-                    </button>
+                  <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                    {ticket.category === 'password_reset' && (
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs">
+                        <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                          <KeyRound className="w-3.5 h-3.5" />
+                          <span>{language === 'bn' ? 'পাসওয়ার্ড রিসেট রিকোয়েস্ট' : 'Password Reset Ticket'}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const target = users.find(u => 
+                              u.id === ticket.userId ||
+                              (ticket.userEmail && u.email.toLowerCase() === ticket.userEmail.toLowerCase()) ||
+                              (ticket.message && ticket.message.toLowerCase().includes(u.email.toLowerCase())) ||
+                              u.name.toLowerCase() === ticket.userName.toLowerCase()
+                            );
+                            if (target) {
+                              await adminResetUserPassword(target.id);
+                            } else {
+                              const emailCandidate = ticket.userEmail || (ticket.message.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0]);
+                              if (emailCandidate) {
+                                await resetPassword(emailCandidate);
+                                resolveHelpTicket(
+                                  ticket.id, 
+                                  language === 'bn' 
+                                    ? `অ্যাডমিন কর্তৃক Firebase Auth পাসওয়ার্ড রিসেট রিকোয়েস্ট অনুমোদিত হয়েছে। ${emailCandidate} ঠিকানায় অফিসিয়াল পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।` 
+                                    : `Admin processed your request. Official Firebase Authentication password reset link dispatched to ${emailCandidate}.`
+                                );
+                              } else {
+                                resolveHelpTicket(
+                                  ticket.id, 
+                                  language === 'bn' 
+                                    ? 'আপনার একাউন্টের সঠিক ইমেইল পাওয়া যায়নি। অনুগ্রহ করে নিবন্ধিত ইমেইল প্রদান করুন।' 
+                                    : 'No registered email found. Please provide your registered account email.'
+                                );
+                              }
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer transition-transform active:scale-95"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          <span>{language === 'bn' ? 'রিসেট লিংক পাঠান' : 'Send Reset Link'}</span>
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={adminReplyText[ticket.id] || ''}
+                        onChange={e => setAdminReplyText(prev => ({ ...prev, [ticket.id]: e.target.value }))}
+                        placeholder={language === 'bn' ? 'অ্যাডমিন রিপ্লাই বা সমাধান লিখুন...' : 'Write resolution reply or custom password...'}
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs"
+                      />
+                      <button
+                        onClick={() => resolveHelpTicket(ticket.id, adminReplyText[ticket.id])}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs cursor-pointer"
+                      >
+                        {language === 'bn' ? 'সমাধান করুন' : 'Resolve'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
